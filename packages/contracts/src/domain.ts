@@ -18,6 +18,14 @@ export const Consent = z.object({
 });
 export type Consent = z.infer<typeof Consent>;
 
+export const PrivacyConsent = z.object({
+  noticeVersion: z.string(),
+  acceptedAt: IsoDate,
+  channels: z.array(Channel),
+  marketingOptIn: z.boolean(),
+});
+export type PrivacyConsent = z.infer<typeof PrivacyConsent>;
+
 export const Lead = z.object({
   id: Uuid,
   workspaceId: z.string(),
@@ -28,9 +36,13 @@ export const Lead = z.object({
   name: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
+  company: z.string().optional(),
+  interest: z.string().optional(),
   synthetic: z.boolean(),
   provenance: Provenance,
   consent: Consent.optional(),
+  privacy: PrivacyConsent.optional(),
+  dedupKey: z.string().optional(),
   suppressedAt: IsoDate.optional(),
   createdBy: z.string(),
   createdAt: IsoDate,
@@ -38,11 +50,54 @@ export const Lead = z.object({
 });
 export type Lead = z.infer<typeof Lead>;
 
+export const PRIVACY_NOTICE_VERSION = "lgpd-notice-v1";
+
+export const CaptureFormInput = z.object({
+  name: z.string().min(2).max(120),
+  company: z.string().min(2).max(160),
+  email: z.string().email().max(200),
+  phone: z.string().max(40).optional(),
+  interest: z.string().min(3).max(500),
+  source: z.enum(["demo_form", "indication", "content", "synthetic", "website_form"]),
+  sourceUrl: z.string().url().optional(),
+  privacy: z.object({
+    noticeVersion: z.literal(PRIVACY_NOTICE_VERSION),
+    marketingOptIn: z.boolean(),
+    channels: z.array(Channel).min(1),
+  }),
+  /** honeypot anti-spam — deve vir vazio */
+  website: z.string().max(0).optional(),
+});
+export type CaptureFormInput = z.infer<typeof CaptureFormInput>;
+
+export const CaptureResult = z.object({
+  leadId: Uuid,
+  duplicate: z.boolean(),
+  status: LeadStatus,
+  message: z.string(),
+});
+export type CaptureResult = z.infer<typeof CaptureResult>;
+
+export const LoginInput = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(200),
+});
+export type LoginInput = z.infer<typeof LoginInput>;
+
+export const SessionInfo = z.object({
+  userId: Uuid,
+  email: z.string().email(),
+  name: z.string(),
+  role: z.enum(["owner", "operator", "approver", "auditor"]),
+  expiresAt: IsoDate,
+});
+export type SessionInfo = z.infer<typeof SessionInfo>;
+
 export const CreateLeadInput = z.object({
   name: z.string().max(120).optional(),
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
-  source: z.enum(["demo_form", "indication", "content", "synthetic"]),
+  source: z.enum(["demo_form", "indication", "content", "synthetic", "website_form"]),
   sourceUrl: z.string().url().optional(),
   synthetic: z.boolean().default(true),
   consent: Consent.optional(),

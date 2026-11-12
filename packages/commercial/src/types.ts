@@ -23,11 +23,3 @@ export type {
   Mission,
   Task,
 };
-export type AgentAssignmentLike = {
-  id: string;
-  missionId: string;
-  agentId: string;
-  role: string;
-  assignedBy: string;
-  assignedAt: string;
-};

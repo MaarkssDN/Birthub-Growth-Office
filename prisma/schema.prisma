@@ -37,6 +37,7 @@ model User {
   roleId       String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  sessions     AuthSession[]
 }
 
 model OfferClaim {
@@ -75,15 +76,23 @@ model Lead {
   name        String?
   email       String?
   phone       String?
+  company     String?
+  interest    String?
   synthetic   Boolean  @default(false)
+  dedupKey    String?
   provenance  Json     // {source, at, legalBasis}
-  consent     Json     // {channel, optIn, at}
+  consent     Json?    // {channel, optIn, at}
+  privacy     Json?    // {noticeVersion, acceptedAt, channels, marketingOptIn}
   suppressedAt DateTime?
   createdBy   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   opportunities Opportunity[]
   missions    Mission[]
+
+  @@index([dedupKey])
+  @@index([email])
+  @@index([status])
 }
 
 model ChannelPermission {
@@ -241,6 +250,22 @@ model EventOutbox {
   occurredAt    DateTime
   payload       Json
   publishedAt   DateTime?
+}
+
+model AuthSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique // sha256 do token opaco — token nunca persistido em claro
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  workspaceId String
+  role       String   // owner|operator|approver|auditor (snapshot)
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model AuditEvent {

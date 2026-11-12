@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type {
-  AgentAssignmentLike,
   ApprovalRequest,
   AuditEvent,
   Channel,
@@ -11,50 +10,28 @@ import type {
   Lead,
   Mission,
   Task,
-} from "./types";
+} from "@bgo/contracts";
 import { WORKSPACE_SLUG } from "@bgo/contracts";
-import { assertTransition } from "./lead-machine";
 import type { LeadStatus } from "@bgo/contracts";
+import { assertTransition } from "./lead-machine";
+import type {
+  AgentAssignmentRecord,
+  ChannelPermissionRecord,
+  NewSession,
+  SessionRecord,
+  StorePort,
+  UserAccount,
+  Workspace,
+} from "./store-port";
 
-export interface Workspace {
-  id: string;
-  slug: string;
-  name: string;
-  ownerId: string;
-  status: string;
-  createdAt: string;
-}
 
-export interface UserAccount {
-  id: string;
-  email: string;
-  name: string;
-  role: "owner" | "operator" | "approver" | "auditor";
-  passwordHash: string;
-}
-
-export interface ChannelPermissionRecord {
-  channel: Channel;
-  optInRequired: boolean;
-  templatesRequired: boolean;
-  allowed: boolean;
-}
-
-interface StoredAgentAssignment {
-  id: string;
-  missionId: string;
-  agentId: string;
-  role: string;
-  assignedBy: string;
-  assignedAt: string;
-}
 
 /**
- * Persistência in-memory da Onda 00 (volátil, single-process).
- * Substituível por PrismaPersistenceAdapter quando Docker estiver seguro —
- * mesma superfície de métodos, ver ADR-003.
+ * Persistência in-memory da Onda 01 (volátil, single-process).
+ * Implementa StorePort — mesma superfície do PrismaStore (packages/db).
+ * Usada em dev sem DATABASE_URL e em testes.
  */
-export class Store {
+export class Store implements StorePort {
   readonly workspace: Workspace;
   readonly users = new Map<string, UserAccount>();
   readonly leads = new Map<string, Lead>();
@@ -64,9 +41,10 @@ export class Store {
   readonly steps: ExecutionStep[] = [];
   readonly approvals = new Map<string, ApprovalRequest>();
   readonly drafts = new Map<string, CommercialDraft>();
-  readonly assignments = new Map<string, StoredAgentAssignment>();
+  readonly assignments = new Map<string, AgentAssignmentRecord>();
+  readonly sessions = new Map<string, SessionRecord>(); // key: tokenHash
   readonly channelPermissions = new Map<Channel, ChannelPermissionRecord>();
-  private audit: AuditEvent[] = [];
+  private auditLog: AuditEvent[] = [];
 
   constructor() {
     const now = new Date().toISOString();
@@ -83,7 +61,7 @@ export class Store {
       email: "owner@bgo.local",
       name: "Proprietário BGO",
       role: "owner",
-      passwordHash: "seed-no-real-auth", // auth real é Onda 01; W00 usa token fixo de dev
+      passwordHash: "seed-no-real-auth",
     });
     this.users.set("user_approver", {
       id: "user_approver",
@@ -92,19 +70,69 @@ export class Store {
       role: "approver",
       passwordHash: "seed-no-real-auth",
     });
-    // Canais externos NUNCA permitidos na Onda 00.
     for (const channel of ["email", "whatsapp", "phone", "internal_note"] as Channel[]) {
       this.channelPermissions.set(channel, {
         channel,
         optInRequired: channel !== "internal_note",
         templatesRequired: channel === "whatsapp",
-        allowed: channel === "internal_note", // somente nota interna é "canal permitido"
+        allowed: channel === "internal_note",
       });
     }
   }
 
-  // ---------- Leads ----------
-  createLead(input: CreateLeadInput, actor: string): Lead {
+  get workspaceSlug(): string {
+    return this.workspace.slug;
+  }
+
+  // ---------- users & sessions ----------
+  async findUserByEmail(email: string): Promise<UserAccount | undefined> {
+    const normalized = email.trim().toLowerCase();
+    return [...this.users.values()].find((u) => u.email.toLowerCase() === normalized);
+  }
+
+  async getUser(id: string): Promise<UserAccount | undefined> {
+    return this.users.get(id);
+  }
+
+  async upsertUser(user: UserAccount): Promise<UserAccount> {
+    this.users.set(user.id, user);
+    return user;
+  }
+
+  async createSession(input: NewSession): Promise<SessionRecord> {
+    const now = new Date().toISOString();
+    const session: SessionRecord = {
+      id: randomUUID(),
+      tokenHash: input.tokenHash,
+      userId: input.userId,
+      workspaceId: input.workspaceId,
+      role: input.role,
+      createdAt: now,
+      expiresAt: input.expiresAt,
+      lastSeenAt: now,
+    };
+    this.sessions.set(input.tokenHash, session);
+    return session;
+  }
+
+  async getSessionByTokenHash(tokenHash: string): Promise<SessionRecord | undefined> {
+    const s = this.sessions.get(tokenHash);
+    if (!s || s.revokedAt || s.expiresAt < new Date().toISOString()) return undefined;
+    return s;
+  }
+
+  async revokeSession(tokenHash: string): Promise<void> {
+    const s = this.sessions.get(tokenHash);
+    if (s) this.sessions.set(tokenHash, { ...s, revokedAt: new Date().toISOString() });
+  }
+
+  async touchSession(tokenHash: string): Promise<void> {
+    const s = this.sessions.get(tokenHash);
+    if (s) this.sessions.set(tokenHash, { ...s, lastSeenAt: new Date().toISOString() });
+  }
+
+  // ---------- leads ----------
+  async createLead(input: CreateLeadInput & Partial<Lead>, actor: string): Promise<Lead> {
     const now = new Date().toISOString();
     const lead: Lead = {
       id: randomUUID(),
@@ -116,6 +144,8 @@ export class Store {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.email !== undefined ? { email: input.email } : {}),
       ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.company !== undefined ? { company: input.company } : {}),
+      ...(input.interest !== undefined ? { interest: input.interest } : {}),
       synthetic: input.synthetic,
       provenance: {
         source: input.source,
@@ -123,6 +153,8 @@ export class Store {
         legalBasis: input.synthetic ? "dado sintético de demonstração" : "a definir na captura real",
       },
       ...(input.consent !== undefined ? { consent: input.consent } : {}),
+      ...(input.privacy !== undefined ? { privacy: input.privacy } : {}),
+      ...(input.dedupKey !== undefined ? { dedupKey: input.dedupKey } : {}),
       createdBy: actor,
       createdAt: now,
       updatedAt: now,
@@ -131,34 +163,44 @@ export class Store {
     return lead;
   }
 
-  getLead(id: string): Lead | undefined {
+  async getLead(id: string): Promise<Lead | undefined> {
     return this.leads.get(id);
   }
 
-  listLeads(): Lead[] {
+  async listLeads(): Promise<Lead[]> {
     return [...this.leads.values()];
   }
 
-  transitionLead(id: string, to: LeadStatus, actor: string): Lead {
+  async findLeadByDedupKey(dedupKey: string): Promise<Lead | undefined> {
+    return [...this.leads.values()].find((l) => l.dedupKey === dedupKey);
+  }
+
+  async transitionLead(id: string, to: LeadStatus, actor: string): Promise<Lead> {
     const lead = this.leads.get(id);
     if (!lead) throw new Error(`lead não encontrado: ${id}`);
     assertTransition(lead.status, to);
-    const from = lead.status;
     const updated: Lead = { ...lead, status: to, updatedAt: new Date().toISOString() };
     this.leads.set(id, updated);
     void actor;
-    void from;
     return updated;
   }
 
-  // ---------- Missions / Tasks ----------
-  createMission(input: {
+  async updateLead(id: string, patch: Partial<Lead>): Promise<Lead> {
+    const lead = this.leads.get(id);
+    if (!lead) throw new Error(`lead não encontrado: ${id}`);
+    const updated: Lead = { ...lead, ...patch, id: lead.id, updatedAt: new Date().toISOString() };
+    this.leads.set(id, updated);
+    return updated;
+  }
+
+  // ---------- missions & tasks ----------
+  async createMission(input: {
     goal: string;
     requester: string;
     leadId?: string;
     correlationId: string;
     createdBy: string;
-  }): Mission {
+  }): Promise<Mission> {
     const now = new Date().toISOString();
     const mission: Mission = {
       id: randomUUID(),
@@ -176,15 +218,15 @@ export class Store {
     return mission;
   }
 
-  getMission(id: string): Mission | undefined {
+  async getMission(id: string): Promise<Mission | undefined> {
     return this.missions.get(id);
   }
 
-  listMissions(): Mission[] {
+  async listMissions(): Promise<Mission[]> {
     return [...this.missions.values()];
   }
 
-  setMissionStatus(id: string, status: Mission["status"]): Mission {
+  async setMissionStatus(id: string, status: Mission["status"]): Promise<Mission> {
     const m = this.missions.get(id);
     if (!m) throw new Error(`missão não encontrada: ${id}`);
     const updated = { ...m, status, updatedAt: new Date().toISOString() };
@@ -192,14 +234,14 @@ export class Store {
     return updated;
   }
 
-  createTask(input: {
+  async createTask(input: {
     missionId: string;
     assigneeId: string;
     title: string;
     correlationId: string;
     dueAt?: string;
     dependsOn?: string[];
-  }): Task {
+  }): Promise<Task> {
     const task: Task = {
       id: randomUUID(),
       missionId: input.missionId,
@@ -214,12 +256,12 @@ export class Store {
     return task;
   }
 
-  listTasks(missionId?: string): Task[] {
+  async listTasks(missionId?: string): Promise<Task[]> {
     const all = [...this.tasks.values()];
     return missionId ? all.filter((t) => t.missionId === missionId) : all;
   }
 
-  setTaskStatus(id: string, status: Task["status"]): Task {
+  async setTaskStatus(id: string, status: Task["status"]): Promise<Task> {
     const t = this.tasks.get(id);
     if (!t) throw new Error(`task não encontrada: ${id}`);
     const updated = { ...t, status };
@@ -227,8 +269,8 @@ export class Store {
     return updated;
   }
 
-  assign(missionId: string, agentId: string, role: string, assignedBy: string): StoredAgentAssignment {
-    const a: StoredAgentAssignment = {
+  async assign(missionId: string, agentId: string, role: string, assignedBy: string): Promise<AgentAssignmentRecord> {
+    const a: AgentAssignmentRecord = {
       id: randomUUID(),
       missionId,
       agentId,
@@ -240,18 +282,18 @@ export class Store {
     return a;
   }
 
-  listAssignments(missionId?: string): StoredAgentAssignment[] {
+  async listAssignments(missionId?: string): Promise<AgentAssignmentRecord[]> {
     const all = [...this.assignments.values()];
     return missionId ? all.filter((a) => a.missionId === missionId) : all;
   }
 
-  // ---------- Runs / Steps ----------
-  createRun(input: {
+  // ---------- runs & steps ----------
+  async createRun(input: {
     missionId: string;
     agentId: string;
     correlationId: string;
     provider?: string;
-  }): ExecutionRun {
+  }): Promise<ExecutionRun> {
     const now = new Date().toISOString();
     const run: ExecutionRun = {
       id: randomUUID(),
@@ -269,16 +311,16 @@ export class Store {
     return run;
   }
 
-  getRun(id: string): ExecutionRun | undefined {
+  async getRun(id: string): Promise<ExecutionRun | undefined> {
     return this.runs.get(id);
   }
 
-  listRuns(missionId?: string): ExecutionRun[] {
+  async listRuns(missionId?: string): Promise<ExecutionRun[]> {
     const all = [...this.runs.values()];
     return missionId ? all.filter((r) => r.missionId === missionId) : all;
   }
 
-  setRunStatus(id: string, status: ExecutionRun["status"], error?: string): ExecutionRun {
+  async setRunStatus(id: string, status: ExecutionRun["status"], error?: string): Promise<ExecutionRun> {
     const r = this.runs.get(id);
     if (!r) throw new Error(`run não encontrada: ${id}`);
     const updated: ExecutionRun = {
@@ -291,14 +333,14 @@ export class Store {
     return updated;
   }
 
-  addStep(input: {
+  async addStep(input: {
     runId: string;
     tool: string;
     action: string;
     inputRef?: string;
     outputRef?: string;
     decision?: Record<string, unknown>;
-  }): ExecutionStep {
+  }): Promise<ExecutionStep> {
     const runSteps = this.steps.filter((s) => s.runId === input.runId);
     const step: ExecutionStep = {
       id: randomUUID(),
@@ -315,12 +357,12 @@ export class Store {
     return step;
   }
 
-  listSteps(runId?: string): ExecutionStep[] {
+  async listSteps(runId?: string): Promise<ExecutionStep[]> {
     return runId ? this.steps.filter((s) => s.runId === runId) : this.steps;
   }
 
-  // ---------- Approvals ----------
-  createApproval(input: {
+  // ---------- approvals ----------
+  async createApproval(input: {
     missionId: string;
     action: string;
     scope: string;
@@ -330,7 +372,7 @@ export class Store {
     approverRole: string;
     correlationId: string;
     expiresAt?: string;
-  }): ApprovalRequest {
+  }): Promise<ApprovalRequest> {
     const now = new Date().toISOString();
     const approval: ApprovalRequest = {
       id: randomUUID(),
@@ -350,21 +392,21 @@ export class Store {
     return approval;
   }
 
-  getApproval(id: string): ApprovalRequest | undefined {
+  async getApproval(id: string): Promise<ApprovalRequest | undefined> {
     return this.approvals.get(id);
   }
 
-  listApprovals(status?: ApprovalRequest["status"]): ApprovalRequest[] {
+  async listApprovals(status?: ApprovalRequest["status"]): Promise<ApprovalRequest[]> {
     const all = [...this.approvals.values()];
     return status ? all.filter((a) => a.status === status) : all;
   }
 
-  decideApproval(
+  async decideApproval(
     id: string,
     decision: "approved" | "rejected",
     decidedBy: string,
     reason?: string,
-  ): ApprovalRequest {
+  ): Promise<ApprovalRequest> {
     const a = this.approvals.get(id);
     if (!a) throw new Error(`approval não encontrada: ${id}`);
     if (a.status !== "pending") throw new Error(`approval ${id} já decidida (${a.status})`);
@@ -385,8 +427,8 @@ export class Store {
     return updated;
   }
 
-  // ---------- Drafts ----------
-  createDraft(input: {
+  // ---------- drafts ----------
+  async createDraft(input: {
     missionId?: string;
     leadId?: string;
     channel: Channel;
@@ -395,7 +437,7 @@ export class Store {
     claimRefs: string[];
     text: string;
     createdBy: string;
-  }): CommercialDraft {
+  }): Promise<CommercialDraft> {
     const now = new Date().toISOString();
     const draft: CommercialDraft = {
       id: randomUUID(),
@@ -416,15 +458,15 @@ export class Store {
     return draft;
   }
 
-  getDraft(id: string): CommercialDraft | undefined {
+  async getDraft(id: string): Promise<CommercialDraft | undefined> {
     return this.drafts.get(id);
   }
 
-  listDrafts(): CommercialDraft[] {
+  async listDrafts(): Promise<CommercialDraft[]> {
     return [...this.drafts.values()];
   }
 
-  setDraftStatus(id: string, status: CommercialDraft["status"]): CommercialDraft {
+  async setDraftStatus(id: string, status: CommercialDraft["status"]): Promise<CommercialDraft> {
     const d = this.drafts.get(id);
     if (!d) throw new Error(`draft não encontrado: ${id}`);
     const updated = { ...d, status, updatedAt: new Date().toISOString() };
@@ -432,29 +474,22 @@ export class Store {
     return updated;
   }
 
-  // ---------- Channel permissions ----------
+  // ---------- channel permissions ----------
   channelPermission(channel: Channel): ChannelPermissionRecord {
     const p = this.channelPermissions.get(channel);
     if (!p) throw new Error(`canal desconhecido: ${channel}`);
     return p;
   }
 
-  // ---------- Audit (append-only, dentro do store para atomicidade com mutações) ----------
-  appendAudit(event: AuditEvent): void {
-    this.audit.push(event);
+  // ---------- audit ----------
+  async appendAudit(event: AuditEvent): Promise<void> {
+    this.auditLog.push(event);
   }
 
-  listAudit(filter?: { correlationId?: string; outcome?: AuditEvent["outcome"]; limit?: number }): AuditEvent[] {
-    let out = this.audit;
+  async listAudit(filter?: { correlationId?: string; outcome?: AuditEvent["outcome"]; limit?: number }): Promise<AuditEvent[]> {
+    let out = this.auditLog;
     if (filter?.correlationId) out = out.filter((a) => a.correlationId === filter.correlationId);
     if (filter?.outcome) out = out.filter((a) => a.outcome === filter.outcome);
     return out.slice(-(filter?.limit ?? 500));
   }
-
-  get workspaceSlug(): string {
-    return this.workspace.slug;
-  }
 }
-
-// tipos locais para evitar dependência circular
-export type { AgentAssignmentLike };

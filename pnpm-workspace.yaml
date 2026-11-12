@@ -8,3 +8,5 @@ allowBuilds:
   "@prisma/engines": true
   prisma: true
   "@electric-sql/pglite": true
+  redis-memory-server: true
+  msgpackr-extract: true

@@ -15,8 +15,10 @@
     "@bgo/agents": "workspace:*",
     "@bgo/commercial": "workspace:*",
     "@bgo/contracts": "workspace:*",
+    "@bgo/db": "workspace:*",
     "@bgo/observability": "workspace:*",
     "@bgo/ui": "workspace:*",
+    "@fastify/cookie": "^11.1.5",
     "fastify": "^5.2.0",
     "zod": "^3.24.1"
   },

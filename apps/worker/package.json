@@ -19,6 +19,7 @@
   "dependencies": {
     "@bgo/commercial": "workspace:*",
     "@bgo/contracts": "workspace:*",
+    "@bgo/db": "workspace:*",
     "@bgo/observability": "workspace:*"
   },
   "devDependencies": {

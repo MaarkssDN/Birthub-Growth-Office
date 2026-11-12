@@ -11,9 +11,9 @@ describe("fluxo demo E2E (G05/G06)", () => {
   let result: DemoFlowResult;
   let store: Store;
 
-  it("lead sintético percorre jornada até aprovação pendente", () => {
+  it("lead sintético percorre jornada até aprovação pendente", async () => {
     store = fresh();
-    result = runDemoFlow(store);
+    result = await runDemoFlow(store);
 
     expect(result.simulated).toBe(true);
     expect(result.lead.synthetic).toBe(true);
@@ -46,38 +46,38 @@ describe("fluxo demo E2E (G05/G06)", () => {
     expect(types).toContain("audit.denied.v1");
   });
 
-  it("tentativa de envio externo fica registrada como denied na auditoria", () => {
-    const denied = store.listAudit({ outcome: "denied" });
+  it("tentativa de envio externo fica registrada como denied na auditoria", async () => {
+    const denied = await store.listAudit({ outcome: "denied" });
     expect(denied.length).toBeGreaterThan(0);
     expect(denied.some((a) => a.action.includes("channel.send"))).toBe(true);
   });
 
-  it("decisão humana aprova draft e completa missão — sem envio", () => {
-    const { missionStatus } = decideApproval(
+  it("decisão humana aprova draft e completa missão — sem envio", async () => {
+    const { missionStatus } = await decideApproval(
       store, result.approvalId, "approved", "user_approver",
     );
     expect(missionStatus).toBe("completed");
-    expect(store.getDraft(result.draft.id)!.status).toBe("approved");
+    expect((await store.getDraft(result.draft.id))!.status).toBe("approved");
     // draft aprovado continua simulated e nunca "sent"
-    expect(store.getDraft(result.draft.id)!.simulated).toBe(true);
-    expect(store.getDraft(result.draft.id)!.status).not.toBe("sent_blocked");
+    expect((await store.getDraft(result.draft.id))!.simulated).toBe(true);
+    expect((await store.getDraft(result.draft.id))!.status).not.toBe("sent_blocked");
   });
 
-  it("auto-aprovação é negada e auditada", () => {
+  it("auto-aprovação é negada e auditada", async () => {
     const store2 = fresh();
-    const r2 = runDemoFlow(store2);
-    const approval = store2.getApproval(r2.approvalId)!;
-    expect(() =>
+    const r2 = await runDemoFlow(store2);
+    const approval = (await store2.getApproval(r2.approvalId))!;
+    await expect(
       decideApproval(store2, r2.approvalId, "approved", approval.requestedBy),
-    ).toThrow(/auto-aprovação/i);
-    expect(store2.listAudit({ outcome: "denied" }).some((a) => a.action === "approval.self_decide")).toBe(true);
+    ).rejects.toThrow(/auto-aprovação/i);
+    expect((await store2.listAudit({ outcome: "denied" })).some((a) => a.action === "approval.self_decide")).toBe(true);
   });
 
-  it("rejeição exige motivo e cancela missão", () => {
+  it("rejeição exige motivo e cancela missão", async () => {
     const store3 = fresh();
-    const r3 = runDemoFlow(store3);
-    const { missionStatus } = decideApproval(store3, r3.approvalId, "rejected", "user_approver", "tom incompatível");
+    const r3 = await runDemoFlow(store3);
+    const { missionStatus } = await decideApproval(store3, r3.approvalId, "rejected", "user_approver", "tom incompatível");
     expect(missionStatus).toBe("cancelled");
-    expect(store3.getDraft(r3.draft.id)!.status).toBe("rejected");
+    expect((await store3.getDraft(r3.draft.id))!.status).toBe("rejected");
   });
 });

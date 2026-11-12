@@ -1,54 +1,266 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import cookie from "@fastify/cookie";
 import { randomUUID } from "node:crypto";
 import {
+  CaptureFormInput,
   CreateLeadInput,
+  LoginInput,
   ApprovalDecisionInput,
   type LeadStatus,
 } from "@bgo/contracts";
 import { activeAgents, getPersona, layerCounts, listAgents, loadCatalog, evaluatePolicy } from "@bgo/agents";
 import {
-  Store,
   decideApproval,
   runDemoFlow,
   scoreLead,
+  captureLead,
+  login as authLogin,
+  logout as authLogout,
+  resolveSession,
+  sha256,
   OFFER_CLAIMS,
   ICP_HYPOTHESIS,
+  type StorePort,
 } from "@bgo/commercial";
 import { eventBus, recordAudit, snapshot as metricsSnapshot } from "@bgo/observability";
 import { deriveVisualState } from "@bgo/ui";
 
 export interface AppContext {
-  store: Store;
+  store: StorePort;
+  /** true somente quando BGO_DEV_AUTH=1 — habilita headers x-bgo-* legados. */
+  devAuth?: boolean;
+  /** modo de persistência para health/telemetria honesta */
+  persistence?: "memory" | "postgres";
 }
+
+interface Actor {
+  id: string;
+  role: string;
+  via: "session" | "dev-header";
+}
+
+/** Rate limiter em memória (por instância; suficiente p/ operação local). */
+class RateLimiter {
+  private buckets = new Map<string, { count: number; resetAt: number }>();
+  hit(key: string, limit: number, windowMs: number): boolean {
+    const now = Date.now();
+    const b = this.buckets.get(key);
+    if (!b || b.resetAt < now) {
+      this.buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return true;
+    }
+    if (b.count >= limit) return false;
+    b.count += 1;
+    return true;
+  }
+}
+
+const limiter = new RateLimiter();
 
 export function buildApp(ctx: AppContext): FastifyInstance {
   const { store } = ctx;
+  const devAuth = ctx.devAuth === true;
   const app = Fastify({ logger: false });
+  void app.register(cookie);
 
-  // ---- Dev auth (Onda 00): header x-bgo-user / x-bgo-role; default approver ----
-  function actorOf(req: FastifyRequest): { id: string; role: string } {
-    const id = (req.headers["x-bgo-user"] as string) ?? "user_approver";
-    const role = (req.headers["x-bgo-role"] as string) ?? "approver";
-    return { id, role };
+  async function audit(
+    actor: string,
+    action: string,
+    entity: string,
+    entityId: string,
+    correlationId: string,
+    outcome: "allowed" | "denied" | "info",
+    payload?: Record<string, unknown>,
+  ) {
+    const ev = recordAudit({
+      actor,
+      action,
+      entity,
+      entityId,
+      workspaceId: store.workspace.slug,
+      correlationId,
+      outcome,
+      ...(payload !== undefined ? { payload } : {}),
+      publishEvent: false,
+    });
+    await store.appendAudit(ev);
+    return ev;
   }
 
+  function publish(
+    eventType: Parameters<typeof eventBus.publish>[0]["eventType"],
+    correlationId: string,
+    payload: Record<string, unknown>,
+    extra?: { missionId?: string; agentId?: string },
+  ) {
+    const event = eventBus.publish({
+      eventType,
+      workspaceId: store.workspace.slug,
+      correlationId,
+      payload,
+      ...(extra?.missionId !== undefined ? { missionId: extra.missionId } : {}),
+      ...(extra?.agentId !== undefined ? { agentId: extra.agentId } : {}),
+    });
+    // persistência do evento no outbox quando há store persistente
+    const p = store as StorePort & { persistEvent?: (e: typeof event) => Promise<void> };
+    if (typeof p.persistEvent === "function") {
+      void p.persistEvent(event).catch(() => undefined);
+    }
+    return event;
+  }
+
+  // ---------- autenticação ----------
+  function sessionToken(req: FastifyRequest): string | undefined {
+    const auth = req.headers.authorization;
+    if (auth?.startsWith("Bearer ")) return auth.slice(7);
+    const cookie = req.headers.cookie;
+    const m = cookie?.match(/(?:^|;\s*)bgo_session=([^;]+)/);
+    return m?.[1] ? decodeURIComponent(m[1]) : undefined;
+  }
+
+  async function actorOf(req: FastifyRequest): Promise<Actor | null> {
+    const token = sessionToken(req);
+    if (token) {
+      const resolved = await resolveSession(store, sha256(token));
+      if (resolved) {
+        return { id: `user:${resolved.user.id}`, role: resolved.user.role, via: "session" };
+      }
+    }
+    if (devAuth) {
+      const id = (req.headers["x-bgo-user"] as string) ?? "user_approver";
+      const role = (req.headers["x-bgo-role"] as string) ?? "approver";
+      return { id, role, via: "dev-header" };
+    }
+    return null;
+  }
+
+  async function requireAuth(req: FastifyRequest, reply: FastifyReply): Promise<Actor | null> {
+    const actor = await actorOf(req);
+    if (!actor) {
+      await reply.code(401).send({ error: "autenticação necessária" });
+      return null;
+    }
+    return actor;
+  }
+
+  // ---------- rotas públicas ----------
   app.get("/api/health", async () => ({
     ok: true,
     mode: "mock",
     simulated: true,
+    persistence: ctx.persistence ?? "memory",
     workspace: store.workspace.slug,
     time: new Date().toISOString(),
   }));
 
+  app.post("/api/auth/login", async (req, reply) => {
+    const ip = req.ip;
+    if (!limiter.hit(`login:${ip}`, 5, 5 * 60 * 1000)) {
+      return reply.code(429).send({ error: "muitas tentativas — aguarde alguns minutos" });
+    }
+    const parsed = LoginInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "e-mail ou senha inválidos" });
+    const result = await authLogin(store, parsed.data.email, parsed.data.password);
+    const correlationId = randomUUID();
+    await audit(
+      `login:${parsed.data.email}`,
+      "auth.login",
+      "AuthSession",
+      result.ok ? "ok" : "denied",
+      correlationId,
+      result.ok ? "allowed" : "denied",
+    );
+    if (!result.ok || !result.sessionToken || !result.user) {
+      return reply.code(401).send({ error: "credenciais inválidas" });
+    }
+    reply.setCookie("bgo_session", result.sessionToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 12 * 3600,
+    });
+    return {
+      token: result.sessionToken,
+      user: result.user,
+      expiresIn: 12 * 3600,
+    };
+  });
+
+  app.post("/api/auth/logout", async (req, reply) => {
+    const token = sessionToken(req);
+    if (token) await authLogout(store, sha256(token));
+    reply.clearCookie("bgo_session", { path: "/" });
+    return { ok: true };
+  });
+
+  app.get("/api/auth/me", async (req, reply) => {
+    const actor = await actorOf(req);
+    if (!actor || actor.via !== "session") {
+      const token = sessionToken(req);
+      if (!token) return reply.code(401).send({ error: "sem sessão" });
+      const resolved = await resolveSession(store, sha256(token));
+      if (!resolved) return reply.code(401).send({ error: "sessão inválida" });
+      return { user: { id: resolved.user.id, email: resolved.user.email, name: resolved.user.name, role: resolved.user.role }, expiresAt: resolved.session.expiresAt };
+    }
+    const userId = actor.id.replace("user:", "");
+    const user = await store.getUser(userId);
+    if (!user) return reply.code(401).send({ error: "usuário inexistente" });
+    return { user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+  });
+
+  // ---------- captação pública controlada ----------
+  app.post("/api/capture", async (req, reply) => {
+    const ip = req.ip;
+    if (!limiter.hit(`capture:${ip}`, 10, 60 * 60 * 1000)) {
+      return reply.code(429).send({ error: "limite de envios atingido — tente mais tarde" });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    // honeypot: bots preenchem campo invisível
+    if (typeof body.website === "string" && body.website.length > 0) {
+      return reply.code(202).send({ ok: true, message: "Recebido." });
+    }
+    const parsed = CaptureFormInput.safeParse(body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "dados inválidos", issues: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
+    }
+    const correlationId = randomUUID();
+    const result = await captureLead(store, parsed.data, "capture:public-form");
+    await audit(
+      "capture:public-form",
+      result.duplicate ? "lead.capture.duplicate" : "lead.capture",
+      "Lead",
+      result.leadId,
+      correlationId,
+      "allowed",
+      { source: parsed.data.source, synthetic: false, duplicate: result.duplicate },
+    );
+    publish("lead.created.v1", correlationId, {
+      leadId: result.leadId,
+      source: parsed.data.source,
+      synthetic: false,
+      status: result.status,
+    });
+    return reply.code(result.duplicate ? 200 : 201).send(result);
+  });
+
+  // ================= rotas autenticadas =================
+  app.addHook("preHandler", async (req, reply) => {
+    const url = req.url.split("?")[0] ?? "";
+    const publicPaths = ["/api/health", "/api/auth/login", "/api/auth/logout", "/api/capture"];
+    if (!url.startsWith("/api/") || publicPaths.includes(url)) return;
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    (req as FastifyRequest & { actor?: Actor }).actor = actor;
+  });
+
+  function actor(req: FastifyRequest): Actor {
+    return (req as FastifyRequest & { actor: Actor }).actor;
+  }
+
   // ---- Catálogo 29 ----
   app.get("/api/catalog", async () => {
     const c = loadCatalog();
-    return {
-      meta: c.meta,
-      layerCounts: layerCounts(),
-      personas: c.personas,
-      agents: c.agents,
-    };
+    return { meta: c.meta, layerCounts: layerCounts(), personas: c.personas, agents: c.agents };
   });
 
   app.get("/api/catalog/:id", async (req, reply) => {
@@ -59,10 +271,9 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     return { persona: persona ?? null, agent: agent ?? null };
   });
 
-  // ---- Agents (estado visual derivado de runs) ----
+  // ---- Agents ----
   app.get("/api/agents", async () => {
-    const runs = store.listRuns();
-    const pendingApprovals = store.listApprovals("pending");
+    const [runs, pendingApprovals] = await Promise.all([store.listRuns(), store.listApprovals("pending")]);
     return activeAgents().map((a) => {
       const latest = runs.filter((r) => r.agentId === a.agentId).at(-1);
       const awaiting = pendingApprovals.some((ap) => String(ap.requestedBy).includes(a.agentId));
@@ -81,31 +292,18 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   app.post("/api/leads", async (req, reply) => {
     const parsed = CreateLeadInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
-    const lead = store.createLead(parsed.data, actorOf(req).id);
+    const lead = await store.createLead(parsed.data, actor(req).id);
     const correlationId = randomUUID();
-    eventBus.publish({
-      eventType: "lead.created.v1",
-      workspaceId: store.workspace.slug,
-      correlationId,
-      payload: { leadId: lead.id, source: lead.source, synthetic: lead.synthetic, status: lead.status },
+    publish("lead.created.v1", correlationId, {
+      leadId: lead.id, source: lead.source, synthetic: lead.synthetic, status: lead.status,
     });
-    const auditEv = recordAudit({
-      actor: actorOf(req).id,
-      action: "lead.create",
-      entity: "Lead",
-      entityId: lead.id,
-      workspaceId: store.workspace.slug,
-      correlationId,
-      outcome: "allowed",
-      payload: { synthetic: lead.synthetic, source: lead.source },
-      publishEvent: false,
-    });
-    store.appendAudit(auditEv);
+    await audit(actor(req).id, "lead.create", "Lead", lead.id, correlationId, "allowed",
+      { synthetic: lead.synthetic, source: lead.source });
     return reply.code(201).send(lead);
   });
 
   app.get("/api/leads/:id", async (req, reply) => {
-    const lead = store.getLead((req.params as { id: string }).id);
+    const lead = await store.getLead((req.params as { id: string }).id);
     if (!lead) return reply.code(404).send({ error: "lead não encontrado" });
     return lead;
   });
@@ -113,30 +311,14 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   app.post("/api/leads/:id/transition", async (req, reply) => {
     const { id } = req.params as { id: string };
     const { to } = req.body as { to: LeadStatus };
-    const before = store.getLead(id);
+    const before = await store.getLead(id);
     if (!before) return reply.code(404).send({ error: "lead não encontrado" });
     const from = before.status;
     try {
-      const lead = store.transitionLead(id, to, actorOf(req).id);
+      const lead = await store.transitionLead(id, to, actor(req).id);
       const correlationId = randomUUID();
-      eventBus.publish({
-        eventType: "lead.status_changed.v1",
-        workspaceId: store.workspace.slug,
-        correlationId,
-        payload: { leadId: lead.id, from, to: lead.status },
-      });
-      const auditEv = recordAudit({
-        actor: actorOf(req).id,
-        action: "lead.transition",
-        entity: "Lead",
-        entityId: lead.id,
-        workspaceId: store.workspace.slug,
-        correlationId,
-        outcome: "allowed",
-        payload: { from, to: lead.status },
-        publishEvent: false,
-      });
-      store.appendAudit(auditEv);
+      publish("lead.status_changed.v1", correlationId, { leadId: lead.id, from, to: lead.status });
+      await audit(actor(req).id, "lead.transition", "Lead", lead.id, correlationId, "allowed", { from, to: lead.status });
       return lead;
     } catch (e) {
       return reply.code(409).send({ error: (e as Error).message });
@@ -144,32 +326,37 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   });
 
   app.post("/api/leads/:id/score", async (req, reply) => {
-    const lead = store.getLead((req.params as { id: string }).id);
+    const lead = await store.getLead((req.params as { id: string }).id);
     if (!lead) return reply.code(404).send({ error: "lead não encontrado" });
-    const decision = evaluatePolicy({ agentId: "meridian", tool: "lead.score", action: "apply_rubric", context: { hasApproval: false, channelAllowed: false, optInVerified: false, claimApproved: true, selfApproval: false, crossTenant: false } });
+    const decision = evaluatePolicy({
+      agentId: "meridian", tool: "lead.score", action: "apply_rubric",
+      context: { hasApproval: false, channelAllowed: false, optInVerified: false, claimApproved: true, selfApproval: false, crossTenant: false },
+    });
     if (!decision.allowed) return reply.code(403).send({ error: decision.reason });
     return scoreLead(lead);
   });
 
   // ---- Missões / Tasks / Runs ----
-  app.get("/api/missions", async () =>
-    store.listMissions().map((m) => ({
+  app.get("/api/missions", async () => {
+    const missions = await store.listMissions();
+    return Promise.all(missions.map(async (m) => ({
       ...m,
-      tasks: store.listTasks(m.id),
-      runs: store.listRuns(m.id),
-      assignments: store.listAssignments(m.id),
-    })),
-  );
+      tasks: await store.listTasks(m.id),
+      runs: await store.listRuns(m.id),
+      assignments: await store.listAssignments(m.id),
+    })));
+  });
 
   app.get("/api/missions/:id", async (req, reply) => {
-    const m = store.getMission((req.params as { id: string }).id);
+    const m = await store.getMission((req.params as { id: string }).id);
     if (!m) return reply.code(404).send({ error: "missão não encontrada" });
+    const runs = await store.listRuns(m.id);
     return {
       ...m,
-      tasks: store.listTasks(m.id),
-      runs: store.listRuns(m.id).map((r) => ({ ...r, steps: store.listSteps(r.id) })),
-      assignments: store.listAssignments(m.id),
-      approvals: store.listApprovals().filter((a) => a.missionId === m.id),
+      tasks: await store.listTasks(m.id),
+      runs: await Promise.all(runs.map(async (r) => ({ ...r, steps: await store.listSteps(r.id) }))),
+      assignments: await store.listAssignments(m.id),
+      approvals: (await store.listApprovals()).filter((a) => a.missionId === m.id),
     };
   });
 
@@ -181,8 +368,8 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   });
 
   app.post("/api/approvals/:id/decision", async (req, reply) => {
-    const actor = actorOf(req);
-    if (actor.role !== "owner" && actor.role !== "approver") {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "approver") {
       return reply.code(403).send({ error: "role insuficiente para decidir aprovação" });
     }
     const parsed = ApprovalDecisionInput.safeParse(req.body);
@@ -191,11 +378,11 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       return reply.code(400).send({ error: "rejeição exige motivo" });
     }
     try {
-      const result = decideApproval(
+      const result = await decideApproval(
         store,
         (req.params as { id: string }).id,
         parsed.data.decision,
-        actor.id,
+        act.id,
         parsed.data.reason,
       );
       return result;
@@ -223,6 +410,13 @@ export function buildApp(ctx: AppContext): FastifyInstance {
 
   app.get("/api/events", async (req) => {
     const q = req.query as { correlationId?: string; eventType?: string; after?: string; limit?: string };
+    const persisted = store as StorePort & { listPersistedEvents?: (f?: { correlationId?: string; limit?: number }) => Promise<unknown[]> };
+    if (typeof persisted.listPersistedEvents === "function") {
+      return persisted.listPersistedEvents({
+        ...(q.correlationId !== undefined ? { correlationId: q.correlationId } : {}),
+        limit: q.limit ? Number(q.limit) : 500,
+      });
+    }
     return eventBus.list({
       ...(q.correlationId !== undefined ? { correlationId: q.correlationId } : {}),
       ...(q.eventType !== undefined ? { eventType: q.eventType as never } : {}),
@@ -238,7 +432,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     });
-    reply.raw.write(`event: hello\ndata: ${JSON.stringify({ mode: "mock", simulated: true })}\n\n`);
+    reply.raw.write(`event: hello\ndata: ${JSON.stringify({ mode: "mock", simulated: true, persistence: ctx.persistence ?? "memory" })}\n\n`);
     const unsub = eventBus.subscribe((event) => {
       reply.raw.write(`id: ${event.eventId}\nevent: ${event.eventType}\ndata: ${JSON.stringify(event)}\n\n`);
     });
@@ -254,7 +448,6 @@ export function buildApp(ctx: AppContext): FastifyInstance {
 
   app.get("/api/metrics", async () => metricsSnapshot());
 
-  // ---- Policy probe (transparência: mostra decisão do backend) ----
   app.post("/api/policy/evaluate", async (req) => {
     return evaluatePolicy(req.body as Parameters<typeof evaluatePolicy>[0]);
   });
@@ -264,19 +457,21 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     const input = req.body && typeof req.body === "object"
       ? CreateLeadInput.partial().parse(req.body)
       : undefined;
-    const result = runDemoFlow(store, input as Parameters<typeof runDemoFlow>[1]);
+    const result = await runDemoFlow(store, input as Parameters<typeof runDemoFlow>[1]);
     return { ...result, mode: "mock", simulated: true };
   });
 
   app.get("/api/demo/status", async () => {
-    const pending = store.listApprovals("pending");
-    const missions = store.listMissions();
+    const [pending, missions, leads, drafts] = await Promise.all([
+      store.listApprovals("pending"), store.listMissions(), store.listLeads(), store.listDrafts(),
+    ]);
     return {
       simulated: true,
+      persistence: ctx.persistence ?? "memory",
       pendingApprovals: pending.length,
       missions: missions.length,
-      leads: store.listLeads().length,
-      drafts: store.listDrafts().length,
+      leads: leads.length,
+      drafts: drafts.length,
     };
   });
 

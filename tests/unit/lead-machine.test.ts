@@ -3,9 +3,9 @@ import { Store } from "@bgo/commercial";
 import { canTransition, InvalidTransition, LEAD_TRANSITIONS } from "@bgo/commercial";
 import type { LeadStatus } from "@bgo/contracts";
 
-function storeWithLead(status: LeadStatus = "new") {
+async function storeWithLead(status: LeadStatus = "new") {
   const store = new Store();
-  const lead = store.createLead(
+  const lead = await store.createLead(
     { name: "T", source: "synthetic", synthetic: true },
     "test",
   );
@@ -35,10 +35,10 @@ describe("máquina de estados do lead", () => {
     expect(canTransition("suppressed", "triage")).toBe(false);
   });
 
-  it("transitionLead aplica e rejeita inválidas", () => {
-    const { store, lead } = storeWithLead("new");
-    const t = store.transitionLead(lead.id, "triage", "test");
+  it("transitionLead aplica e rejeita inválidas", async () => {
+    const { store, lead } = await storeWithLead("new");
+    const t = await store.transitionLead(lead.id, "triage", "test");
     expect(t.status).toBe("triage");
-    expect(() => store.transitionLead(lead.id, "won", "test")).toThrow(InvalidTransition);
+    await expect(store.transitionLead(lead.id, "won", "test")).rejects.toThrow(InvalidTransition);
   });
 });

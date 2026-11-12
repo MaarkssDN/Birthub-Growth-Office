@@ -1,8 +1,19 @@
 const API = "/api";
 
+let authToken: string | null = sessionStorage.getItem("bgo_token");
+export function setAuthToken(t: string | null) {
+  authToken = t;
+  if (t) sessionStorage.setItem("bgo_token", t);
+  else sessionStorage.removeItem("bgo_token");
+}
+export function getAuthToken() { return authToken; }
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
   const res = await fetch(`${API}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
+    credentials: "include",
     ...init,
   });
   if (!res.ok) {
@@ -18,6 +29,9 @@ export interface Lead {
   status: string;
   name?: string;
   email?: string;
+  company?: string;
+  interest?: string;
+  phone?: string;
   synthetic: boolean;
   capturedAt: string;
   createdBy: string;
@@ -89,6 +103,15 @@ export interface AuditItem {
   correlationId: string;
 }
 
+export interface SessionUser { id: string; email: string; name: string; role: string }
+export interface CaptureInput {
+  name: string; company: string; email: string; phone?: string;
+  interest: string; source: string; sourceUrl?: string;
+  privacy: { noticeVersion: string; marketingOptIn: boolean; channels: string[] };
+  website?: string;
+}
+export interface CaptureResult { leadId: string; duplicate: boolean; status: string; message: string }
+
 export const api = {
   health: () => req<{ mode: string; simulated: boolean }>("/health"),
   agents: () => req<AgentState[]>("/agents"),
@@ -113,4 +136,10 @@ export const api = {
       body: "{}",
     }),
   demoStatus: () => req<{ pendingApprovals: number; missions: number; leads: number; simulated: boolean }>("/demo/status"),
+  login: (email: string, password: string) =>
+    req<{ token: string; user: SessionUser }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => req<{ ok: boolean }>("/auth/logout", { method: "POST", body: "{}" }),
+  me: () => req<{ user: SessionUser }>("/auth/me"),
+  capture: (input: CaptureInput) =>
+    req<CaptureResult>("/capture", { method: "POST", body: JSON.stringify(input) }),
 };

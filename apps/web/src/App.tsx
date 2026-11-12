@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type AuditItem, type CatalogAgent, type EventItem } from "./api";
+import { api, setAuthToken, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
+import { CaptureView, LoginView } from "./views";
 
-type Tab = "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "office";
+type Tab = "capture" | "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "office";
 
+const PUBLIC_TABS: Tab[] = ["capture"];
 const TABS: { id: Tab; label: string }[] = [
+  { id: "capture", label: "Captação" },
   { id: "dashboard", label: "Dashboard" },
   { id: "agents", label: "Agentes (6)" },
   { id: "leads", label: "Leads" },
@@ -163,20 +166,22 @@ function LeadsView() {
   return (
     <Section title="Leads (dados sintéticos)">
       <table>
-        <thead><tr><th>Nome</th><th>Fonte</th><th>Status</th><th>Sintético</th><th>Capturado</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Empresa</th><th>Contato</th><th>Fonte</th><th>Status</th><th>Tipo</th><th>Capturado</th></tr></thead>
         <tbody>
           {(leads.data ?? []).map((l) => (
             <tr key={l.id}>
               <td>{l.name ?? "—"}</td>
+              <td>{l.company ?? "—"}</td>
+              <td className="muted">{l.email ?? l.phone ?? "—"}</td>
               <td><span className="mono">{l.source}</span></td>
               <td><Badge status={l.status} /></td>
-              <td>{l.synthetic ? <span className="badge gold">SIMULAÇÃO</span> : "não"}</td>
+              <td>{l.synthetic ? <span className="badge gold">SIMULAÇÃO</span> : <span className="badge cyan">REAL</span>}</td>
               <td className="mono muted">{new Date(l.capturedAt).toLocaleString("pt-BR")}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {!(leads.data ?? []).length && <p className="muted">Nenhum lead ainda — rode o fluxo demo.</p>}
+      {!(leads.data ?? []).length && <p className="muted">Nenhum lead ainda — use a aba Captação ou rode o fluxo demo.</p>}
     </Section>
   );
 }
@@ -389,6 +394,26 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    api.me()
+      .then((r) => setUser(r.user))
+      .catch(() => setUser(null))
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  useEffect(() => {
+    if (authChecked && !user && tab !== "capture") setTab("capture");
+  }, [user, authChecked]);
+
+  const logout = async () => {
+    await api.logout().catch(() => undefined);
+    setAuthToken(null);
+    setUser(null);
+  };
+
   const runDemo = async () => {
     setRunning(true);
     setNotice(null);
@@ -414,8 +439,14 @@ export default function App() {
           Birthub <span className="go">Growth</span> <span className="enlouq">Office</span>
         </div>
         <span className="sim-badge">MODO SIMULAÇÃO</span>
+        {user && (
+          <span className="muted" style={{ fontSize: 12 }}>
+            {user.name} · {user.role}{" "}
+            <button className="btn secondary small" onClick={logout}>sair</button>
+          </span>
+        )}
         <nav className="nav" aria-label="Seções">
-          {TABS.map((t) => (
+          {TABS.filter((t) => user || PUBLIC_TABS.includes(t.id)).map((t) => (
             <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
@@ -424,16 +455,18 @@ export default function App() {
       </header>
       <main>
         {notice && <div className="card" style={{ borderColor: "var(--cyan)", marginBottom: 16 }}>{notice}</div>}
-        {tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
-        {tab === "agents" && <AgentsView />}
-        {tab === "leads" && <LeadsView />}
-        {tab === "missions" && <MissionsView />}
-        {tab === "approvals" && <ApprovalsView onDecide={decide} />}
-        {tab === "catalog" && <CatalogView />}
-        {tab === "timeline" && <TimelineView />}
-        {tab === "office" && <OfficeView />}
+        {tab === "capture" && <CaptureView />}
+        {authChecked && !user && <LoginView onLogin={(u) => { setUser(u); setTab("dashboard"); }} />}
+        {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
+        {user && tab === "agents" && <AgentsView />}
+        {user && tab === "leads" && <LeadsView />}
+        {user && tab === "missions" && <MissionsView />}
+        {user && tab === "approvals" && <ApprovalsView onDecide={decide} />}
+        {user && tab === "catalog" && <CatalogView />}
+        {user && tab === "timeline" && <TimelineView />}
+        {user && tab === "office" && <OfficeView />}
         <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>
-          Birthub Growth Office · Onda 00 · nenhum dado real, nenhum envio externo ·{" "}
+          Birthub Growth Office · Onda 01 · persistência local · nenhum envio externo ·{" "}
           <span className="badge gold">SIMULAÇÃO</span>
         </footer>
       </main>

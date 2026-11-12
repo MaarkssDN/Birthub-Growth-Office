@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@bgo/agents": "workspace:*",
+    "@bgo/ai": "workspace:*",
     "@bgo/commercial": "workspace:*",
     "@bgo/contracts": "workspace:*",
     "@bgo/observability": "workspace:*",
@@ -32,6 +33,7 @@
     "eslint": "^9.17.0",
     "playwright-core": "1.49.1",
     "prisma": "6.19.3",
+    "redis-memory-server": "0.17.2",
     "tsx": "4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",

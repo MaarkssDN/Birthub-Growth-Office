@@ -78,3 +78,7 @@ export type ClaimStatus = z.infer<typeof ClaimStatus>;
 
 export const TaskStatus = z.enum(["pending", "assigned", "done", "blocked", "cancelled"]);
 export type TaskStatus = z.infer<typeof TaskStatus>;
+
+/** Estados visuais do contrato de eventos do escritório (Onda 02/Fase 06). */
+export const VISUAL_STATES = ["idle","listening","processing","speaking","success","error"] as const;
+export type VisualState = (typeof VISUAL_STATES)[number];

@@ -23,6 +23,7 @@ import {
   type StorePort,
 } from "@bgo/commercial";
 import { eventBus, recordAudit, snapshot as metricsSnapshot } from "@bgo/observability";
+import { aiGateway } from "@bgo/ai";
 import { deriveVisualState } from "@bgo/ui";
 
 export interface AppContext {
@@ -447,6 +448,9 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   });
 
   app.get("/api/metrics", async () => metricsSnapshot());
+
+  // ---- Status dos provedores de IA (transparência: sempre declara modo) ----
+  app.get("/api/ai/status", async () => ({ ...aiGateway.status(), note: "modo simulated = respostas mock determinísticas, nenhum modelo real consultado" }));
 
   app.post("/api/policy/evaluate", async (req) => {
     return evaluatePolicy(req.body as Parameters<typeof evaluatePolicy>[0]);

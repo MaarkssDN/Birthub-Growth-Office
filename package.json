@@ -1,0 +1,36 @@
+{
+  "name": "birthub-growth-office",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Birthub Growth Office — Comercial Enlouquecidamente (Onda 00, fundação independente)",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:api": "pnpm --filter @bgo/api run dev",
+    "dev:web": "pnpm --filter @bgo/web run dev",
+    "lint": "pnpm -r run lint && eslint tests",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "test:packages": "pnpm -r run test",
+    "build": "pnpm -r run build",
+    "db:up": "docker compose -f infra/compose/docker-compose.yml up -d",
+    "db:down": "docker compose -f infra/compose/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@bgo/agents": "workspace:*",
+    "@bgo/commercial": "workspace:*",
+    "@bgo/contracts": "workspace:*",
+    "@bgo/observability": "workspace:*",
+    "@bgo/ui": "workspace:*",
+    "@bgo/worker": "workspace:*",
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^3.0.5"
+  }
+}

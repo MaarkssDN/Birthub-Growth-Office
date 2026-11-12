@@ -1,0 +1,51 @@
+# Birthub Growth Office — infraestrutura local ISOLADA (não executar sem Docker seguro)
+# Serviços exclusivos do BGO: nomes bgo_*, volumes bgo_*, bind 127.0.0.1.
+# PROIBIDO: Docker daemon TCP remoto, portas na LAN, reuse de recursos do Birthub 360°.
+name: bgo-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: bgo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: birthub_growth_office_dev
+      POSTGRES_USER: bgo_user
+      POSTGRES_PASSWORD: ${BGO_POSTGRES_PASSWORD:?defina no .env local}
+    ports:
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - bgo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bgo_user -d birthub_growth_office_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [bgo_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: bgo_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${BGO_REDIS_PASSWORD:?defina no .env local}"]
+    ports:
+      - "127.0.0.1:6387:6379"
+    volumes:
+      - bgo_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${BGO_REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [bgo_net]
+
+networks:
+  bgo_net:
+    name: bgo_net
+    driver: bridge
+
+volumes:
+  bgo_postgres_data:
+    name: bgo_postgres_data
+  bgo_redis_data:
+    name: bgo_redis_data

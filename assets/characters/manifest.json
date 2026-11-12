@@ -1,0 +1,1081 @@
+{
+  "produto": "Birthub Growth Office",
+  "onda": "00",
+  "status_geral": "PLANEJADO — nenhum asset final existe nesta onda",
+  "total_personagens": 29,
+  "personagens": [
+    {
+      "id": "orbit",
+      "nome": "Orbit",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#FFC107",
+        "secundaria": "#00D4FF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "orbit/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "orbit/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "orbit/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "orbit/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "nexus",
+      "nome": "Nexus",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#00D4FF",
+        "secundaria": "#38BDF8",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "nexus/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "nexus/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "nexus/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "nexus/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "aria",
+      "nome": "Aria",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#10B981",
+        "secundaria": "#00D4FF",
+        "destaque": "#34D399"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "aria/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "aria/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "aria/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "aria/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "vanguard",
+      "nome": "Vanguard",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#FF2D9B",
+        "secundaria": "#FFC107",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "vanguard/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "vanguard/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "vanguard/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "vanguard/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "oracle",
+      "nome": "Oracle",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#A855F7",
+        "secundaria": "#FF2D9B",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "oracle/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "oracle/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "oracle/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "oracle/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "core",
+      "nome": "Core",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#6366F1",
+        "secundaria": "#00D4FF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "core/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "core/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "core/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "core/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "spark",
+      "nome": "Spark",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#14B8A6",
+        "secundaria": "#D4F434",
+        "destaque": "#00F2FE"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "spark/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "spark/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "spark/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "spark/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "echo",
+      "nome": "Echo",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#FB7185",
+        "secundaria": "#00D4FF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "echo/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "echo/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "echo/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "echo/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "sudo",
+      "nome": "Sudo",
+      "camada": "pillar",
+      "cores": {
+        "primaria": "#94A3B8",
+        "secundaria": "#00D4FF",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "sudo/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "sudo/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "sudo/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "sudo/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "axiom",
+      "nome": "Axiom",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#38BDF8",
+        "secundaria": "#FFC107",
+        "destaque": "#22C55E"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "axiom/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "axiom/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "axiom/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "axiom/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "beacon",
+      "nome": "Beacon",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#FBBF24",
+        "secundaria": "#FF2D9B",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "beacon/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "beacon/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "beacon/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "beacon/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "meridian",
+      "nome": "Meridian",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#34D399",
+        "secundaria": "#8B7DFF",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "meridian/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "meridian/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "meridian/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "meridian/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "forge",
+      "nome": "Forge",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#FB923C",
+        "secundaria": "#FFC107",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "forge/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "forge/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "forge/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "forge/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "relay",
+      "nome": "Relay",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#2DD4BF",
+        "secundaria": "#00D4FF",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "relay/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "relay/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "relay/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "relay/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "helm",
+      "nome": "Helm",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#A78BFA",
+        "secundaria": "#FFC107",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "helm/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "helm/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "helm/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "helm/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "apex",
+      "nome": "Apex",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#FACC15",
+        "secundaria": "#8B7DFF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "apex/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "apex/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "apex/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "apex/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "ledger",
+      "nome": "Ledger",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#22C55E",
+        "secundaria": "#FFC107",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "ledger/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "ledger/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "ledger/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "ledger/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "anchor",
+      "nome": "Anchor",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#60A5FA",
+        "secundaria": "#FF2D9B",
+        "destaque": "#8B7DFF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "anchor/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "anchor/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "anchor/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "anchor/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "seal",
+      "nome": "Seal",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#F472B6",
+        "secundaria": "#FFC107",
+        "destaque": "#8B7DFF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "seal/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "seal/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "seal/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "seal/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "cipher",
+      "nome": "Cipher",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#6EE7B7",
+        "secundaria": "#38BDF8",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "cipher/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "cipher/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "cipher/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "cipher/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "harbinger",
+      "nome": "Harbinger",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#C084FC",
+        "secundaria": "#00D4FF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "harbinger/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "harbinger/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "harbinger/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "harbinger/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "scout",
+      "nome": "Scout",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#4ADE80",
+        "secundaria": "#00D4FF",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "scout/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "scout/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "scout/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "scout/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "pledge",
+      "nome": "Pledge",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#F9A8D4",
+        "secundaria": "#8B7DFF",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "pledge/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "pledge/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "pledge/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "pledge/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "tribunal",
+      "nome": "Tribunal",
+      "camada": "commercial-agent",
+      "cores": {
+        "primaria": "#64748B",
+        "secundaria": "#EF4444",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "tribunal/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "tribunal/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "tribunal/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "tribunal/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "vox",
+      "nome": "Vox",
+      "camada": "channel-agent",
+      "cores": {
+        "primaria": "#F0ABFC",
+        "secundaria": "#00D4FF",
+        "destaque": "#FF2D9B"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "vox/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "vox/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "vox/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "vox/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "scope",
+      "nome": "Scope",
+      "camada": "channel-agent",
+      "cores": {
+        "primaria": "#A3E635",
+        "secundaria": "#8B7DFF",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "scope/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "scope/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "scope/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "scope/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "tracker",
+      "nome": "Tracker",
+      "camada": "channel-agent",
+      "cores": {
+        "primaria": "#F87171",
+        "secundaria": "#FFC107",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "tracker/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "tracker/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "tracker/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "tracker/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "tempo",
+      "nome": "Tempo",
+      "camada": "channel-agent",
+      "cores": {
+        "primaria": "#67E8F9",
+        "secundaria": "#FF2D9B",
+        "destaque": "#FFC107"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "tempo/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "tempo/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "tempo/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "tempo/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    },
+    {
+      "id": "aegis",
+      "nome": "Aegis",
+      "camada": "orchestration",
+      "cores": {
+        "primaria": "#8B7DFF",
+        "secundaria": "#FFC107",
+        "destaque": "#00D4FF"
+      },
+      "assets_futuros": {
+        "master_2d": {
+          "arquivo": "aegis/master-2048.png",
+          "status": "PLANEJADO",
+          "spec": ">=2048px, nitidez homologada individualmente"
+        },
+        "card_webp": {
+          "arquivo": "aegis/card.webp",
+          "status": "PLANEJADO",
+          "spec": "otimizado p/ cards"
+        },
+        "modelo_3d": {
+          "arquivo": "aegis/character.glb",
+          "status": "PLANEJADO",
+          "spec": "GLB + rig; somente após aprovação de arte (Onda 05)"
+        },
+        "expressoes": {
+          "arquivo": "aegis/expressions/",
+          "status": "PLANEJADO",
+          "spec": ">=5 estados expressivos"
+        }
+      },
+      "regras": [
+        "bonequinho 3D original, cartoon premium, sem fotos humanas",
+        "proibido recorte de pôster ou upscale de baixa resolução",
+        "identidade consistente entre master 2D e modelo 3D"
+      ]
+    }
+  ]
+}

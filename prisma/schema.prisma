@@ -1,0 +1,259 @@
+// Birthub Growth Office — schema Prisma ALVO (Onda 00)
+// STATUS: NÃO MIGRADO. Docker indisponível no ambiente de execução.
+// O adapter vigente é in-memory (packages/commercial/src/store.ts).
+// Promover para Prisma somente após `infra/compose` seguro + ADR de execução.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // postgresql://bgo_user:***@127.0.0.1:5437/birthub_growth_office_dev
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  slug      String   @unique // 'birthub-growth'
+  name      String
+  ownerId   String
+  status    String   @default("active") // active | suspended
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  leads     Lead[]
+  missions  Mission[]
+  events    EventOutbox[]
+  audits    AuditEvent[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  email        String   @unique
+  name         String
+  passwordHash String
+  roleId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model OfferClaim {
+  id          String   @id @default(cuid())
+  workspaceId String
+  claim       String
+  evidenceUrl String?
+  status      String   // approved | pending | rejected
+  version     String   // ex.: offer-v1
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ICPProfile {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  revision     String    // icp-hypothesis-v1
+  segments     Json
+  pains        Json
+  excludes     Json
+  scoreRubric  Json
+  validatedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Lead {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  source      String   // demo_form | indication | content | synthetic
+  sourceUrl   String?
+  capturedAt  DateTime @default(now())
+  status      String   @default("new")
+  name        String?
+  email       String?
+  phone       String?
+  synthetic   Boolean  @default(false)
+  provenance  Json     // {source, at, legalBasis}
+  consent     Json     // {channel, optIn, at}
+  suppressedAt DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  opportunities Opportunity[]
+  missions    Mission[]
+}
+
+model ChannelPermission {
+  id            String  @id @default(cuid())
+  workspaceId   String
+  channel       String  // email | whatsapp | phone
+  optInRequired Boolean @default(true)
+  templatesRequired Boolean @default(false)
+  allowed       Boolean @default(false) // W00: false p/ externos
+}
+
+model Opportunity {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id])
+  stage          String   @default("new")
+  nextAction     String?
+  lastActivityAt DateTime @default(now())
+  ownerId        String?
+  amount         Decimal? // sempre null na W00
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Mission {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id])
+  requester    String
+  goal         String
+  status       String   @default("draft")
+  correlationId String  @unique
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tasks        Task[]
+  runs         ExecutionRun[]
+  approvals    ApprovalRequest[]
+}
+
+model Task {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  missionId    String
+  mission      Mission  @relation(fields: [missionId], references: [id])
+  assigneeId   String   // agentId ou userId
+  title        String
+  status       String   @default("pending") // pending|assigned|done|blocked
+  dueAt        DateTime?
+  dependsOn    String[]
+  correlationId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AgentDefinition {
+  id              String  @id // agentId canônico (aegis, relay, ...)
+  personaId       String? // CharacterPersona.id quando houver visual
+  capabilities    Json
+  autonomyCeiling String  // L0..L4
+  active          Boolean @default(false)
+  createdAt       DateTime @default(now())
+}
+
+model AgentAssignment {
+  id          String   @id @default(cuid())
+  workspaceId String
+  missionId   String
+  agentId     String
+  role        String
+  assignedBy  String
+  assignedAt  DateTime @default(now())
+}
+
+model ExecutionRun {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  missionId     String
+  mission       Mission  @relation(fields: [missionId], references: [id])
+  agentId       String
+  provider      String   @default("mock")
+  mock          Boolean  @default(true)
+  status        String   @default("queued")
+  costUnits     Int      @default(0)
+  correlationId String
+  error         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  steps         ExecutionStep[]
+}
+
+model ExecutionStep {
+  id         String   @id @default(cuid())
+  runId      String
+  run        ExecutionRun @relation(fields: [runId], references: [id])
+  seq        Int
+  tool       String
+  action     String
+  inputRef   String?
+  outputRef  String?
+  decision   Json?
+  createdAt  DateTime @default(now())
+}
+
+model ApprovalRequest {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  missionId    String
+  mission      Mission  @relation(fields: [missionId], references: [id])
+  action       String   // ex.: draft.review, channel.send
+  scope        String
+  reason       String
+  preview      Json
+  requestedBy  String   // agentId ou userId
+  approverRole String   // owner|approver
+  status       String   @default("pending") // pending|approved|rejected|expired
+  decision     String?
+  decidedBy    String?
+  decidedAt    DateTime?
+  decidedReason String?
+  expiresAt    DateTime?
+  correlationId String
+  createdAt    DateTime @default(now())
+}
+
+model CommercialDraft {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  missionId       String?
+  channel         String   // email|whatsapp|internal_note
+  recipientPolicy String   // synthetic_only | opt_in_required | blocked
+  template        String?
+  claimRefs       String[]
+  text            String
+  status          String   @default("draft") // draft|approved|rejected|sent_blocked
+  simulated       Boolean  @default(true)
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model EventOutbox {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  eventId       String    @unique
+  eventType     String
+  version       Int
+  correlationId String
+  missionId     String?
+  agentId       String?
+  occurredAt    DateTime
+  payload       Json
+  publishedAt   DateTime?
+}
+
+model AuditEvent {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  actor          String
+  action         String
+  entity         String
+  entityId       String
+  occurredAt     DateTime @default(now())
+  correlationId  String
+  redactedPayload Json?
+  outcome        String   // allowed|denied|info
+  createdAt      DateTime @default(now())
+}

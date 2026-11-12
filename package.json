@@ -25,6 +25,7 @@
     "@bgo/ai": "workspace:*",
     "@bgo/commercial": "workspace:*",
     "@bgo/contracts": "workspace:*",
+    "@bgo/db": "workspace:*",
     "@bgo/observability": "workspace:*",
     "@bgo/ui": "workspace:*",
     "@bgo/worker": "workspace:*",

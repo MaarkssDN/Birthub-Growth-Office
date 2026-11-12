@@ -26,7 +26,7 @@ function emit(
   payload: Record<string, unknown>,
   extra?: { missionId?: string; agentId?: string },
 ) {
-  return eventBus.publish({
+  const event = eventBus.publish({
     eventType,
     workspaceId: store.workspace.slug,
     correlationId,
@@ -34,6 +34,12 @@ function emit(
     ...(extra?.missionId !== undefined ? { missionId: extra.missionId } : {}),
     ...(extra?.agentId !== undefined ? { agentId: extra.agentId } : {}),
   });
+  // Outbox: quando o store é persistente, grava o evento (idempotente por eventId).
+  const p = store as StorePort & { persistEvent?: (e: typeof event) => Promise<void> };
+  if (typeof p.persistEvent === "function") {
+    void p.persistEvent(event).catch(() => undefined);
+  }
+  return event;
 }
 
 async function audit(
@@ -146,8 +152,12 @@ async function runAgent(
  * lead sintético → missão Aegis → dispatch Relay → dossiê Scout →
  * qualificação Meridian → rascunho Beacon → lembrete Pledge → aprovação pendente.
  */
-export async function runDemoFlow(store: StorePort, input?: Partial<CreateLeadInput>): Promise<DemoFlowResult> {
-  const correlationId = randomUUID();
+export async function runDemoFlow(
+  store: StorePort,
+  input?: Partial<CreateLeadInput>,
+  opts?: { correlationId?: string },
+): Promise<DemoFlowResult> {
+  const correlationId = opts?.correlationId ?? randomUUID();
   const leadInput = {
     name: "Lead Demo Sintético",
     email: "demo@synthetic.bgo.local",

@@ -7,6 +7,7 @@ export { PersistentQueue } from "./persistent-queue";
 export type { Job, JobHandler } from "./queue";
 
 export type QueueBackend = "local" | "bullmq";
+export type StoreBackend = "postgres" | "memory";
 
 /**
  * Resolve conexão Redis:
@@ -27,13 +28,58 @@ export async function resolveRedisUrl(env: NodeJS.ProcessEnv = process.env): Pro
   return `redis://${host}:${port}`;
 }
 
-async function demoFlowHandler(store: StorePort, payload: unknown) {
-  await runDemoFlow(store, payload as Parameters<typeof runDemoFlow>[1]);
+/**
+ * Resolve StorePort do worker (Onda 03 — worker persistente):
+ * 1. DATABASE_URL definida → PrismaStore compartilhado com a API (mesmo banco).
+ *    Para PGlite dev: rode `pnpm --filter @bgo/db pglite:up` e exporte a
+ *    DATABASE_URL impressa; API e worker conectam via socket 127.0.0.1:5437.
+ * 2. Sem DATABASE_URL → Store em memória (modo mock/testes; documentado).
+ * O worker NUNCA abre o dataDir do PGlite diretamente (lock por processo) —
+ * sempre via socket compartilhado.
+ */
+export async function resolveStoreFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ store: StorePort; backend: StoreBackend; disconnect?: () => Promise<void> }> {
+  if (env.BGO_PERSISTENCE === "memory" || !env.DATABASE_URL) {
+    if (env.BGO_PERSISTENCE !== "memory" && !env.DATABASE_URL) {
+      console.warn("[bgo-worker] DATABASE_URL ausente — Store em memória (volátil). Para persistência: pglite:up + DATABASE_URL.");
+    }
+    return { store: new Store(), backend: "memory" };
+  }
+  try {
+    const { PrismaStore, disconnectPrisma } = await import("@bgo/db");
+    const store = new PrismaStore();
+    await store.init();
+    console.log(`[bgo-worker] Store persistente via ${env.DATABASE_URL.replace(/:[^:@/]+@/, ":***@")}`);
+    return { store, backend: "postgres", disconnect: disconnectPrisma };
+  } catch (e) {
+    console.warn(`[bgo-worker] persistência indisponível (${(e as Error).message}) — caindo para memória`);
+    return { store: new Store(), backend: "memory" };
+  }
 }
 
-/** Cria worker com backend persistente (BullMQ) se Redis disponível. */
-export async function createWorker(store: StorePort): Promise<{ queue: LocalQueue | PersistentQueue; backend: QueueBackend }> {
-  const redisUrl = await resolveRedisUrl();
+/** Idempotência de domínio: se já existe missão com o correlationId, não reexecuta. */
+async function alreadyProcessed(store: StorePort, correlationId: string): Promise<boolean> {
+  const missions = await store.listMissions();
+  return missions.some((m) => m.correlationId === correlationId);
+}
+
+async function demoFlowHandler(store: StorePort, payload: unknown): Promise<void> {
+  const input = (payload ?? {}) as { correlationId?: string };
+  const correlationId = typeof input.correlationId === "string" ? input.correlationId : undefined;
+  if (correlationId && (await alreadyProcessed(store, correlationId))) {
+    console.log(`[bgo-worker] demo-flow correlationId=${correlationId} já processado — skip (idempotência de domínio)`);
+    return;
+  }
+  await runDemoFlow(store, undefined, correlationId ? { correlationId } : undefined);
+}
+
+/** Cria worker com backend de fila escolhido e store injetado. */
+export async function createWorker(
+  store: StorePort,
+  opts: { redisUrl?: string | null } = {},
+): Promise<{ queue: LocalQueue | PersistentQueue; backend: QueueBackend }> {
+  const redisUrl = opts.redisUrl !== undefined ? opts.redisUrl : await resolveRedisUrl();
   if (redisUrl) {
     const queue = new PersistentQueue(redisUrl);
     queue.register("demo-flow", (data) => demoFlowHandler(store, data.payload));
@@ -50,19 +96,30 @@ export async function createWorker(store: StorePort): Promise<{ queue: LocalQueu
   return { queue, backend: "local" };
 }
 
-// Entrypoint standalone.
+// Entrypoint standalone: store persistente se DATABASE_URL, senão memória.
 const isMain = process.argv[1]?.endsWith("index.ts") || process.argv[1]?.endsWith("index.js");
 if (isMain) {
   void (async () => {
-    const store: StorePort = new Store();
+    const { store, backend: storeBackend, disconnect } = await resolveStoreFromEnv();
     const { queue, backend } = await createWorker(store);
-    console.log(`[bgo-worker] backend=${backend} — modo mock, sem envios externos`);
+    console.log(`[bgo-worker] store=${storeBackend} queue=${backend} — modo mock, sem envios externos`);
     if (backend === "local") {
+      const local = queue as LocalQueue;
       setInterval(() => {
-        void (queue as LocalQueue).tick();
+        void local.tick();
       }, 500);
     }
-    // bullmq: Worker já consome continuamente; manter processo vivo
-    setInterval(() => undefined, 60_000);
+
+    // Shutdown gracioso: fecha worker/fila e desconecta Prisma.
+    const shutdown = async (signal: string) => {
+      console.log(`[bgo-worker] ${signal} — encerrando graciosamente`);
+      await (queue as PersistentQueue).close?.().catch(() => undefined);
+      await disconnect?.().catch(() => undefined);
+      process.exit(0);
+    };
+    process.on("SIGINT", () => void shutdown("SIGINT"));
+    process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+    setInterval(() => undefined, 60_000); // manter processo vivo (bullmq consome internamente)
   })();
 }

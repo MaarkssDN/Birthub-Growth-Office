@@ -131,3 +131,36 @@ tr:hover td { background: #1a1a20; }
   main { padding: 12px; }
   .nav { margin-left: 0; }
 }
+
+/* ---- Escritório 3D (Onda 03) ---- */
+.office-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+.office-stage { position: relative; border: 1px solid var(--line, #232a3a); border-radius: 14px; overflow: hidden; background: #0a0c12; min-height: 480px; }
+.office-stage canvas { display: block; }
+.office-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.office-hud .btn { pointer-events: auto; }
+.office-notice { position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(10,12,18,.85); border: 1px solid var(--cyan); border-radius: 10px; padding: 8px 12px; font-size: 12px; }
+.office-nogl { display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; min-height: 480px; color: var(--muted); text-align: center; padding: 24px; }
+.office-panel { border: 1px solid var(--line, #232a3a); border-radius: 14px; padding: 14px; background: var(--panel, #10131c); }
+.office-agent-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 14px; }
+.office-agent { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 10px; padding: 8px 10px; color: inherit; cursor: pointer; font: inherit; }
+.office-agent:hover { border-color: var(--line, #2a3348); }
+.office-agent.sel { border-color: var(--cyan); background: rgba(0,212,255,.06); }
+.office-agent .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.office-agent b { flex: 1; font-size: 13px; }
+.office-detail h3 { margin: 4px 0 2px; }
+.office-detail h4 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.office-detail .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line, #232a3a); }
+.office-label { font-family: inherit; font-size: 11px; font-weight: 600; color: #e8ecf5; background: rgba(10,12,18,.82); border: 1px solid; border-radius: 8px; padding: 3px 9px; white-space: nowrap; display: flex; gap: 6px; align-items: center; pointer-events: none; }
+.office-label.sel { box-shadow: 0 0 0 1px #fff inset; }
+.office-label .st { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .85; }
+.st-idle { color: #8b93a7; } .st-listening { color: #00d4ff; } .st-processing { color: #ffc107; }
+.st-speaking { color: #ff2d9b; } .st-success { color: #34d399; } .st-error { color: #f87171; }
+.badge.st-idle { color: #8b93a7; } .badge.st-listening { color: #00d4ff; } .badge.st-processing { color: #ffc107; }
+.badge.st-speaking { color: #ff2d9b; } .badge.st-success { color: #34d399; } .badge.st-error { color: #f87171; }
+.tiny { font-size: 11px; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+@media (max-width: 900px) {
+  .office-wrap { grid-template-columns: 1fr; }
+  .office-stage { min-height: 340px; }
+  .office-panel { order: 2; }
+}

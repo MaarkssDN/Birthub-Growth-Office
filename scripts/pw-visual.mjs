@@ -15,7 +15,8 @@ async function shot(name, w, h, fn) {
 }
 
 await shot("desktop-captacao", 1440, 900, async (page) => {
-  await page.goto("http://127.0.0.1:4180/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
   ok("desktop carrega captação pública", await page.locator("text=Manifestação de interesse").count() > 0);
   ok("desktop mostra login do escritório", await page.locator("text=acesso do escritório").count() > 0);
   const form = page.locator("form").first();
@@ -28,7 +29,8 @@ await shot("desktop-captacao", 1440, 900, async (page) => {
 });
 
 await shot("desktop-login-pipeline", 1440, 900, async (page) => {
-  await page.goto("http://127.0.0.1:4180/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
   await page.locator(".card").last().locator("input[type=email]").fill("owner@bgo.local");
   await page.locator(".card").last().locator("input[type=password]").fill("smoke-pass-123");
   await page.click("button:has-text('Entrar')");
@@ -50,7 +52,8 @@ await shot("desktop-login-pipeline", 1440, 900, async (page) => {
 });
 
 await shot("mobile-captacao", 390, 844, async (page) => {
-  await page.goto("http://127.0.0.1:4180/", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
   ok("mobile carrega captação+login", await page.locator("text=Manifestação de interesse").count() > 0 && await page.locator("text=acesso do escritório").count() > 0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 5);
   ok("mobile sem overflow horizontal", !overflow);

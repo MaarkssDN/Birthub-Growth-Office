@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useAsync } from "./hooks";
 import { api, setAuthToken, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
 import { CaptureView, LoginView } from "./views";
+import { OfficeView } from "./office/OfficeView";
 
 type Tab = "capture" | "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "office";
 
@@ -17,20 +19,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "office", label: "Escritório" },
 ];
 
-function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const reload = useCallback(() => {
-    setLoading(true);
-    fn()
-      .then(setData)
-      .catch((e) => setError((e as Error).message))
-      .finally(() => setLoading(false));
-  }, deps);
-  useEffect(reload, [reload]);
-  return { data, error, loading, reload };
-}
 
 const STATE_LABEL: Record<string, string> = {
   idle: "ocioso", listening: "escutando", processing: "processando",
@@ -339,51 +327,6 @@ function TimelineView() {
                 <span className={`badge ${a.outcome === "denied" ? "red" : a.outcome === "allowed" ? "green" : "dim"}`}>{a.outcome}</span>
               </div>
             ))}
-      </div>
-    </Section>
-  );
-}
-
-function OfficeView() {
-  const agents = useAsync(() => api.agents());
-  const stations: { name: string; agent?: string }[] = [
-    { name: "Torre de Controle", agent: "aegis" },
-    { name: "Central de Orquestração", agent: "relay" },
-    { name: "Observatório de Mercado", agent: "scout" },
-    { name: "Sala de Qualificação", agent: "meridian" },
-    { name: "Estúdio de Abordagem", agent: "beacon" },
-    { name: "Mesa de Compromissos", agent: "pledge" },
-  ];
-  const byId = new Map((agents.data ?? []).map((a) => [a.agentId, a]));
-  return (
-    <Section title="Escritório virtual — placeholder 2D">
-      <div className="office-placeholder">
-        <div style={{ fontSize: 40 }}>🏢</div>
-        <b>Escritório 3D previsto para a Onda 05</b>
-        <p>
-          Cena isométrica com bonequinhos 3D individuais, rigs e animações derivadas de
-          eventos reais. Nesta onda: shell 2D responsivo + estações reservadas.
-          Nenhum modelo GLB é prometido ou carregado.
-        </p>
-        <span className="badge gold">PLANEJADO · Onda 05</span>
-      </div>
-      <div className="station-grid">
-        {stations.map((s) => {
-          const a = s.agent ? byId.get(s.agent) : undefined;
-          return (
-            <div className="station" key={s.name}>
-              <b>{s.name}</b>
-              {s.agent ?? "—"}
-              {a && (
-                <div style={{ marginTop: 6 }}>
-                  <span className="badge cyan">{STATE_LABEL[a.visual.state]}</span>{" "}
-                  {a.visual.awaitingApproval && <span className="badge magenta">aprovação</span>}{" "}
-                  <span className="badge gold">sim</span>
-                </div>
-              )}
-            </div>
-          );
-        })}
       </div>
     </Section>
   );

@@ -1,0 +1,15 @@
+import { chromium } from "playwright-core";
+const b = await chromium.launch({ executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", headless: true });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
+const p = await ctx.newPage();
+await p.goto("http://127.0.0.1:4180/", { waitUntil: "networkidle" });
+await p.locator(".card").last().locator("input[type=email]").fill("owner@bgo.local");
+await p.locator(".card").last().locator("input[type=password]").fill("smoke-pass-123");
+await p.click("button:has-text('Entrar')");
+await p.waitForSelector("text=Fluxo demonstrativo", { timeout: 8000 });
+await p.screenshot({ path: "docs/onda-01/evidencias/mobile-dashboard.png", fullPage: true });
+await p.click("nav >> text=Leads");
+await p.waitForSelector("text=pw@qa.com", { timeout: 5000 });
+await p.screenshot({ path: "docs/onda-01/evidencias/mobile-leads.png", fullPage: true });
+await b.close();
+console.log("done");

@@ -20,10 +20,11 @@ import {
   sha256,
   OFFER_CLAIMS,
   ICP_HYPOTHESIS,
+  approvedClaimIds,
   type StorePort,
 } from "@bgo/commercial";
 import { eventBus, recordAudit, snapshot as metricsSnapshot } from "@bgo/observability";
-import { aiGateway } from "@bgo/ai";
+import { aiGateway, meridianDiagnose } from "@bgo/ai";
 import { deriveVisualState } from "@bgo/ui";
 
 export interface AppContext {
@@ -451,6 +452,35 @@ export function buildApp(ctx: AppContext): FastifyInstance {
 
   // ---- Status dos provedores de IA (transparência: sempre declara modo) ----
   app.get("/api/ai/status", async () => ({ ...aiGateway.status(), note: "modo simulated = respostas mock determinísticas, nenhum modelo real consultado" }));
+
+  // Diagnóstico comercial do Meridian (Onda 03) — autenticado, auditado,
+  // nunca dispara ação externa; saída passa pela guarda anti-promoções.
+  app.post("/api/ai/meridian-diagnose", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    if (!limiter.hit(`ai-diagnose:${actor.id}`, 10, 60 * 60 * 1000)) {
+      return reply.code(429).send({ error: "limite de diagnósticos por hora atingido" });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const correlationId = randomUUID();
+    const leadId = typeof body.leadId === "string" ? body.leadId : undefined;
+    let leadData: Record<string, unknown> = { ...(body.lead as Record<string, unknown> | undefined ?? {}) };
+    if (leadId) {
+      const lead = await store.getLead(leadId);
+      if (!lead) return reply.code(404).send({ error: "lead não encontrado" });
+      leadData = { id: lead.id, name: lead.name, company: lead.company, interest: lead.interest, source: lead.source, status: lead.status };
+    }
+    const result = await meridianDiagnose(aiGateway, {
+      ...leadData,
+      ...(typeof body.icp === "object" && body.icp !== null ? { icp: body.icp } : { icp: ICP_HYPOTHESIS }),
+      approvedClaims: approvedClaimIds(),
+    });
+    await audit(actor.id, "ai.meridian_diagnose", "Lead", leadId ?? "adhoc", correlationId, result.ok ? "allowed" : "denied", {
+      simulated: result.simulated, provider: result.provider, model: result.model,
+      promptVersion: result.promptVersion, rejectedReason: result.rejectedReason ?? null,
+    });
+    return { ...result, correlationId, simulated: true };
+  });
 
   app.post("/api/policy/evaluate", async (req) => {
     return evaluatePolicy(req.body as Parameters<typeof evaluatePolicy>[0]);

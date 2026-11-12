@@ -77,6 +77,10 @@ export const PROMPTS: Record<string, { version: string; template: string }> = {
     version: "prompt-v1",
     template: "Você é Pledge, compromissos e follow-up. Para o lead {{lead}} e estágio {{stage}}, proponha o próximo compromisso e lembrete. Retorne JSON: {commitment, remindAt}.",
   },
+  "meridian.diagnose.v1": {
+    version: "prompt-v2",
+    template: "Você é Meridian, qualificador SDR do Birthub Growth Office. Produza um diagnóstico comercial ESTRUTURADO do lead {{lead}} contra o ICP {{icp}} e rubrica {{rubric}}. Responda APENAS JSON válido: {diagnosis:string, justification:string, confidence:number(0-1), nextAction:string, claimRefs:string[]}. REGRAS DURAS: nunca invente preços, funcionalidades, prazos, SLA ou cases; use somente claimRefs aprovados em {{approvedClaims}}; se faltar informação, declare em justification e reduza confidence.",
+  },
   "aegis.supervise.v1": {
     version: "prompt-v1",
     template: "Você é Aegis, supervisor central. Revise a missão {{mission}} quanto a riscos, aprovações pendentes e conformidade de claims. Retorne JSON: {risks[], approvalsNeeded[]}.",
@@ -89,13 +93,26 @@ export class MockProvider implements ProviderAdapter {
   readonly name = "mock";
   async complete(req: CompletionRequest) {
     const prompt = PROMPTS[`${req.promptKey}`];
-    const simulatedOutput = JSON.stringify({
-      simulated: true,
-      promptKey: req.promptKey,
-      promptVersion: req.promptVersion ?? prompt?.version ?? "prompt-v1",
-      note: "resposta simulada — nenhum modelo real foi consultado",
-      inputKeys: Object.keys(req.input),
-    });
+    // saídas simuladas schema-válidas por prompt (diagnóstico real continua
+    // exigindo provider real; aqui o conteúdo é explicitamente mock)
+    let simulatedOutput: string;
+    if (req.promptKey === "meridian.diagnose.v1") {
+      simulatedOutput = JSON.stringify({
+        diagnosis: "[SIMULADO] lead dentro do ICP hipótese; fit comercial a confirmar",
+        justification: "[SIMULADO] rubrica aplicada sobre dados sintéticos; nenhuma fonte externa consultada",
+        confidence: 0.4,
+        nextAction: "[SIMULADO] aguardar revisão humana antes de qualquer abordagem",
+        claimRefs: [],
+      });
+    } else {
+      simulatedOutput = JSON.stringify({
+        simulated: true,
+        promptKey: req.promptKey,
+        promptVersion: req.promptVersion ?? prompt?.version ?? "prompt-v1",
+        note: "resposta simulada — nenhum modelo real foi consultado",
+        inputKeys: Object.keys(req.input),
+      });
+    }
     return {
       ok: true,
       provider: "mock",
@@ -257,3 +274,5 @@ export class AiGateway {
 }
 
 export const aiGateway = new AiGateway();
+
+export * from "./meridian";

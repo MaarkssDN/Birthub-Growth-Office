@@ -1,0 +1,959 @@
+
+Documento Mestre • Onda 00 | Birthub Growth Office
+◈ BGO · ONDA 00
+01 · Direção
+02 · Independência
+03 · Comercial
+04 · Arquitetura
+05 · Dados
+06 · 29 personagens
+07 · Governança
+08 · Missões
+09 · Métricas
+10 · Escritório 3D
+11 · Ondas
+12 · Gates
+13 · Riscos
+14 · Prompt
+15 · Fontes
+Birthub 
+Growth
+Comercial Enlouquecidamente
+01
+Direção
+02
+Independência
+03
+Comercial
+04
+Arquitetura
+05
+Dados
+06
+29 personagens
+07
+Governança
+08
+Missões
+09
+Métricas
+10
+Escritório 3D
+11
+Ondas
+12
+Gates
+13
+Riscos
+14
+Prompt
+15
+Fontes
+STATUS · ESPECIFICAÇÃO
+Implementação pendente. Nenhum envio externo autorizado.
+DOCUMENTO MESTRE OFICIAL · V1.0 · ONDA 00
+Growth 
+Office.
+COMERCIAL ENLOUQUECIDAMENTE
+O escritório independente de agentes comerciais que trabalhará para atrair leads, qualificar oportunidades e vender o 
+Birthub 360°
+ — com autonomia supervisionada, resultados auditáveis e uma futura experiência 3D de personagens cartunizados.
+29
+Personagens no catálogo
+06
+Agentes iniciais
+07
+Ondas planejadas, 00–06
+10
+Gates de homologação
+Data-base: 11/11/2026 · Governança: projeto autônomo · Uso: instrução e planejamento de implementação, não comprovação de produção
+01 · DIREÇÃO EXECUTIVA
+O que estamos construindo
+Uma empresa comercial digital própria, não uma cópia ou módulo do Birthub 360°.
+◈
+Produto a vender
+Birthub 360°, usando somente informações aprovadas e material de oferta verificado.
+✦
+Máquina comercial
+Seis agentes no MVP, orquestração auditável e humanos nas decisões sensíveis.
+▣
+Escritório virtual
+Experiência imersiva e independente; animação deriva de execução, não a substitui.
+Estado inicial:
+ este documento é uma especificação. Não confirma que o novo repositório ou o escritório já estejam implementados. O catálogo dos 29 foi fundamentado nos arquivos enviados; os estados técnicos ali descritos não substituem auditoria executável.
+Objetivo da Onda 00:
+ transformar premissas comerciais em contratos, governança e um alicerce compilável sem ferramentas externas ativas.
+Usuário principal:
+ proprietário/diretor comercial; futuros papéis humanos: operador, aprovador e auditor.
+Primeiro resultado demonstrável:
+ lead sintético → análise → rascunho → aprovação humana pendente, com log íntegro.
+Fora do escopo:
+ 29 runtimes funcionais, disparos externos, cobrança real, integração Birthub, ambiente 3D completo e clientes multi-tenant.
+02 · FRONTEIRAS
+Independência e invariantes
+Critérios que não podem ser flexibilizados nem em protótipos.
+⌁
+Raiz exclusiva
+Sugestão: C:\Users\Marks\Documents\GitHub\Birthub-Growth-Office; nunca dentro da pasta do Birthub.
+◉
+Dados exclusivos
+DB 
+birthub_growth_office_dev
+; env, secrets, redes e volumes 
+bgo_*
+ próprios.
+◎
+Local primeiro
+Front 4180, API 4181, DB 5437, Redis 6387, se livres; bind localhost e sem Docker remoto inseguro.
+⇄
+Integração futura
+Somente por APIs documentadas, autenticação, consentimentos e contrato de eventos; nenhuma dependência de build.
+Proibições expressas:
+ acessar o .env ou o banco do Birthub; replicar secrets; modificar outro repositório; expor Redis/Postgres à LAN; simular sucesso de envio; chamar APIs pagas na Onda 00 sem autorização.
+03 · NEGÓCIO
+Estratégia comercial da operação
+Primeiro definir o que podemos oferecer; depois ativar aquisição.
+◎
+ICP — hipótese inicial
+Empresas B2B com processo SDR/BDR, pipeline, cadências e dificuldades de previsibilidade. Confirmar mediante entrevistas/dados.
+◇
+Dores a validar
+Fragmentação de dados, baixa disciplina de follow-up, ausência de visão de funil e dificuldade de conectar sinais a receitas.
+✴
+Canais prioritários
+Formulário de demonstração, conteúdo, indicação, contato iniciado pelo interessado e pesquisa empresarial com fontes permitidas.
+▣
+Oferta e prova
+Demo por caso de uso, recursos com evidência, objeções honestas e proposta sob aprovação humana.
+Catálogo de claims comerciais
+Item de oferta
+Condição para uso externo
+Nome / posicionamento Birthub 360°
+Descrição estratégica proposta; validar wording com proprietário.
+Módulos disponíveis hoje
+PENDENTE_DE_VALIDACAO; cruzar versão do produto com teste demonstrável.
+Preços, planos, descontos e trials
+PENDENTE_DE_VALIDACAO; nunca inventar números.
+Integrações e automações
+PENDENTE_DE_VALIDACAO; requer evidência funcional por provedor.
+Números de resultado, ROI e depoimentos
+PENDENTE_DE_VALIDACAO; proibido caso não haja fonte.
+Tempo de implantação, suporte e SLA
+PENDENTE_DE_VALIDACAO; exige política aprovada.
+Jornada comercial-alvo
+Lead sintético captado
+→
+Aegis cria missão
+→
+Relay distribui
+→
+Scout pesquisa
+→
+Meridian qualifica
+→
+Beacon redige
+→
+Pledge acompanha
+→
+Aprovação humana
+A Onda 00 usa lead 
+sintético
+ e ferramentas mock. Envios, reuniões e receitas só poderão ser mostrados como reais quando houver confirmação externa e trilha auditável.
+04 · ENGENHARIA
+Arquitetura de referência
+Uma aplicação própria com orquestração desacoplada da experiência 3D.
+OWNER / DIREÇÃO HUMANA
+Objetivos, oferta, política, aprovações e orçamento
+APP WEB
+Leads • Missões • Escritório • Aprovações
+API INDEPENDENTE
+Auth • Policy Engine • SSE • Contratos
+AEGIS + RELAY
+Orquestração e coordenação auditáveis
+4 AGENTES INICIAIS
+Scout • Meridian • Beacon • Pledge
+POSTGRESQL BGO
+Dados comerciais e auditoria próprios
+REDIS/BULLMQ BGO
+Jobs, retries e limitação de ações
+PROVIDER PORT
+Mock primeiro; IA real depois
+⛨ Sem código, banco, rede, volume ou credencial compartilhados com Birthub 360°
+Stack recomendada
+Camada
+Solução preferencial
+Decisão e justificativa
+Frontend
+React + TypeScript + Vite
+SPA independente, design system próprio, acessibilidade e fallback 2D.
+API
+Node.js + Fastify
+Contratos tipados, validação Zod, endpoints próprios.
+Banco
+PostgreSQL 17 + Prisma (sujeito a ADR)
+Persistência local, migrations SOMENTE no banco novo.
+Jobs
+Redis + BullMQ
+Filas, retry, idempotência, políticas, acompanhamento de execução.
+IA
+ProviderPort + MockProvider
+IA intercambiável; não exigir API key nem criar gasto na Onda 00.
+Atualizações
+SSE + outbox de eventos
+Estados derivados de fatos persistidos, sem animações falsas.
+3D futuro
+Three.js + React Three Fiber
+Cena ortográfica isométrica, lazy load, opção sem 3D.
+Infra
+Compose local independente
+Volumes `bgo_*`, serviços `127.0.0.1`, sem Docker remoto inseguro.
+Testes
+Vitest + Playwright (smoke)
+Comandos reproduzíveis, negativas de permissão, E2E de simulação.
+Árvore do novo repositório
+Birthub-Growth-Office/
+├── apps/
+│   ├── web/                  # dashboard, leads, missões, office shell
+│   ├── api/                  # REST, autenticação, SSE
+│   └── worker/               # workers, adapters mock
+├── packages/
+│   ├── agents/               # persona registry, perfis, guardrails
+│   ├── commercial/           # leads, oferta, qualificação, pipeline
+│   ├── contracts/            # schemas, eventos e estados
+│   ├── observability/        # logs, trilha e métricas
+│   └── ui/                   # tokens, componentes e acessibilidade
+├── infra/compose/            # banco e Redis exclusivos
+├── prisma/                   # schema e migrations da base BGO
+├── assets/characters/        # manifest, 3D futuro, renders HD
+├── docs/onda-00/             # documentos e evidências
+├── tests/                    # unitários, integração e smoke
+├── AGENTS.md                 # governança exclusiva do BGO
+├── .env.example              # sem segredos reais
+├── pnpm-workspace.yaml
+└── README.md
+05 · DADOS E EVENTOS
+Contratos de domínio
+Persistência, rastreabilidade e contratos versionados são o centro do sistema.
+Entidade
+Campos essenciais / regra
+Workspace
+id, slug=birthub-growth, owner, status, timestamps. Único workspace da Onda 00.
+OfferClaim
+claim, evidenceUrl, status [approved,pending,rejected], version, approvedBy.
+ICPProfile
+segments, pains, excludes, scoreRubric, revision, validatedAt nullable.
+Lead
+source, sourceUrl, capturedAt, status, email/phone opcionais, channel permission.
+Opportunity
+leadId, stage, nextAction, lastActivityAt, owner, amount nullable.
+Mission / Task
+requester, goal, assignee, dependencies, dueAt, status, correlationId.
+ExecutionRun / Step
+agentId, inputs refs, outputs refs, provider, mock flag, timestamps, cost, error.
+ApprovalRequest
+action, scope, reason, preview, approver, decision, expiry, auditId.
+CommercialDraft
+channel, recipient policy, template, claimRefs, text, status; sem envio na W00.
+EventOutbox / AuditEvent
+eventId, actor, action, occurrence, correlationId, redactedPayload, outcome.
+Envelope de evento
+{
+  "eventId": "uuid",
+  "eventType": "mission.assigned.v1",
+  "version": 1,
+  "workspaceId": "birthub-growth",
+  "correlationId": "uuid",
+  "missionId": "uuid",
+  "agentId": "relay",
+  "occurredAt": "2026-11-11T00:00:00Z",
+  "payload": {"taskId":"uuid", "simulated":true}
+}
+Os estados de execução do backend são 
+draft, queued, running, waiting_input, awaiting_approval, completed, failed, cancelled
+. A visualização usa 
+idle, listening, processing, speaking, success, error
+ e indicadores adicionais explícitos para 
+simulação
+ e 
+aguardando aprovação
+.
+06 · ELENCO E OPERAÇÃO
+Os 29 personagens canônicos
+Identidades e papéis preservados; separar a persona visual da implementação do executor.
+Todos · 29
+Primeiros 6
+Pilares · 9
+Comerciais · 15
+Canais · 4
+Supervisor · 1
+29 personagens no catálogo
+O
+Orbit
+Guardião do CRM
+CATALOGADO · Pilares
+↗
+N
+Nexus
+Analista de Dados
+CATALOGADO · Pilares
+↗
+A
+Aria
+Maestrina de Fluxos
+CATALOGADO · Pilares
+↗
+V
+Vanguard
+Estrategista de Metas
+CATALOGADO · Pilares
+↗
+O
+Oracle
+Visionário de Forecast
+CATALOGADO · Pilares
+↗
+C
+Core
+Mente Principal
+CATALOGADO · Pilares
+↗
+S
+Spark
+Engenheiro de Integrações
+CATALOGADO · Pilares
+↗
+E
+Echo
+Especialista em Voz
+CATALOGADO · Pilares
+↗
+S
+Sudo
+Controlador de Sistema
+CATALOGADO · Pilares
+↗
+A
+Axiom
+Guardião de Dados LDR
+CATALOGADO · Comerciais
+↗
+B
+Beacon
+Prospector Outbound
+INICIAL · Comerciais
+↗
+M
+Meridian
+Qualificador SDR
+INICIAL · Comerciais
+↗
+F
+Forge
+Closer Copilot
+CATALOGADO · Comerciais
+↗
+R
+Relay
+Coordenador de Vendas
+INICIAL · Comerciais
+↗
+H
+Helm
+Gerente Comercial IA
+CATALOGADO · Comerciais
+↗
+A
+Apex
+Diretor Executivo IA
+CATALOGADO · Comerciais
+↗
+L
+Ledger
+Auditor de Faturamento
+CATALOGADO · Comerciais
+↗
+A
+Anchor
+Guardião de Retenção
+CATALOGADO · Comerciais
+↗
+S
+Seal
+Guardião Contratual
+CATALOGADO · Comerciais
+↗
+C
+Cipher
+Guardião Bitrix24
+CATALOGADO · Comerciais
+↗
+H
+Harbinger
+Oráculo de Receita
+CATALOGADO · Comerciais
+↗
+S
+Scout
+Detetive de Conta
+INICIAL · Comerciais
+↗
+P
+Pledge
+Guardião de Promessas
+INICIAL · Comerciais
+↗
+T
+Tribunal
+Advogado do Diabo
+CATALOGADO · Comerciais
+↗
+V
+Vox
+Discador Autônomo
+CATALOGADO · Canais
+↗
+S
+Scope
+Diagnóstico de Leads
+CATALOGADO · Canais
+↗
+T
+Tracker
+Scanner de Mercado
+CATALOGADO · Canais
+↗
+T
+Tempo
+Assistente Tático
+CATALOGADO · Canais
+↗
+A
+Aegis
+Supervisor Central
+INICIAL · Supervisão
+↗
+Selecione um personagem para ver ficha, ID de integração documental e limitações. Os monogramas são identificadores temporários: a produção artística final exige bonequinhos individuais nítidos e aprovados.
+Primeiro esquadrão — contratos funcionais
+A
+EQUIPE ATIVA · MVP
+Aegis
+Supervisor da operação
+Traduz objetivo comercial em missões auditáveis; delega; monitora gates, custos e riscos.
+Entradas:
+ Produto/oferta aprovada, políticas, histórico de execuções.
+Saídas:
+ Plano de missão, delegações, bloqueios e síntese de resultados.
+Ferramentas:
+ Read-only de configurações; fila de tarefas; painel de aprovações.
+Autonomia:
+ L2 para tarefas internas; L3 apenas solicita aprovação.
+Limite:
+ Não ignora políticas, não faz envios externos nem mudanças financeiras.
+Métrica:
+ Missões concluídas com evidência; incidentes; custo por execução.
+R
+EQUIPE ATIVA · MVP
+Relay
+Coordenador comercial
+Quebra missões em etapas; prioriza fila; acompanha SLA; gerencia handoffs e deduplicação.
+Entradas:
+ Missão de Aegis, backlog, restrições e calendário.
+Saídas:
+ Tarefas atribuídas, prazos, trilha de handoffs e bloqueios.
+Ferramentas:
+ Task service, queue, CRM interno, event bus.
+Autonomia:
+ L2 em tarefas internas reversíveis.
+Limite:
+ Não envia mensagens nem atribui orçamento sem autorização.
+Métrica:
+ Handoffs sem perda; SLA de triagem; reprocessamento.
+S
+EQUIPE ATIVA · MVP
+Scout
+Pesquisa e dossiê de contas
+Pesquisa empresas-alvo em fontes permitidas e gera dossiês com URLs, data e nível de confiança.
+Entradas:
+ ICP aprovado, fontes permitidas, pergunta de pesquisa.
+Saídas:
+ Dossiê estruturado, origem de dados, lacunas e recomendação.
+Ferramentas:
+ Pesquisa web autorizada; validadores; enriquecimento permitido.
+Autonomia:
+ L1 recomendar; L2 registrar rascunho e evidência.
+Limite:
+ Não coleta dados sensíveis, não faz scraping restrito, não inventa contatos.
+Métrica:
+ Contas com fonte verificável; completude; dados corrigidos.
+M
+EQUIPE ATIVA · MVP
+Meridian
+Qualificação SDR
+Aplica rubric de qualificação e prioriza interessados; registra justificativa legível.
+Entradas:
+ Lead captado, consentimentos, dossiê, ICP e perguntas.
+Saídas:
+ Score explicável, próxima ação e perguntas pendentes.
+Ferramentas:
+ Lead/CRM service, rubric versionada, IA para análise.
+Autonomia:
+ L1 recomendar; L2 atualizar rascunho/sugestão de score.
+Limite:
+ Não inventa respostas, não exclui leads nem decide recusa final sem política.
+Métrica:
+ Precisão de classificação revisada; tempo de qualificação.
+B
+EQUIPE ATIVA · MVP
+Beacon
+Mensagens e abordagem
+Prepara abordagens personalizadas e, futuramente, propõe campanhas sob política de canal.
+Entradas:
+ Lead autorizado, contexto, oferta aprovada e canais.
+Saídas:
+ Rascunhos com referências, linguagem adequada e pedido de aprovação.
+Ferramentas:
+ Gerador de texto, catálogo de claims, templates, contact policy.
+Autonomia:
+ L1 rascunhos; L3 para qualquer envio externo.
+Limite:
+ Não dispara mensagens de forma autônoma no MVP; não usa números sem opt-in.
+Métrica:
+ Taxa de aprovação; qualidade; respostas por canal após autorização.
+P
+EQUIPE ATIVA · MVP
+Pledge
+Compromissos e follow-up
+Monitora prazos, compromissos e próximos passos; cria lembretes e solicita retornos.
+Entradas:
+ Oportunidades, reuniões, promessas verificadas e SLA.
+Saídas:
+ Tarefas, lembretes, alertas de atraso e rascunho de follow-up.
+Ferramentas:
+ Calendar adapter opcional, task service, notifications internas.
+Autonomia:
+ L2 lembretes internos; L3 envios/convites externos.
+Limite:
+ Não assume reunião agendada sem confirmação; não cria promessa não documentada.
+Métrica:
+ Compromissos cumpridos; tarefas vencidas; no-show rate.
+07 · GOVERNANÇA
+Matriz de autonomia e controles
+O Supervisor propõe decisões; o policy engine impõe limites independentemente do frontend.
+Ação
+Autonomia
+Gate obrigatório
+Ler dados autorizados
+L0
+Permissão RBAC e minimização.
+Pesquisar e recomendar
+L1
+Fonte autorizada, evidência e limites de taxa.
+Criar rascunhos/tarefas internas
+L2
+Log, reversibilidade, aprovação se dado sensível.
+Enviar e-mail, WhatsApp, convite, proposta
+L3
+Consentimento/canal, conteúdo aprovado, humano autorizado, histórico.
+Assinar, pagar, alterar preços, disparar em massa
+L4 — proibido na Onda 00
+Bloqueio no backend, mesmo em chamadas diretas da API.
+Alterar política, credenciais, banco de outro projeto
+L4 — proibido
+Negação incondicional e registro de tentativa.
+Veto de confiança:
+ qualquer tentativa de mensagem externa sem política completa deve falhar no backend, gerar auditoria e ficar em aprovação.
+Prevenção LGPD:
+ finalidade declarada, fonte e data do dado, base legal analisada, minimização, exclusão e registro de opt-out.
+WhatsApp:
+ opt-in de recebimento, templates aprovados quando aplicável, janela de serviço, canal humano e lista de supressão.
+Segurança:
+ menor privilégio, limites de gastos, APIs sob credenciais próprias, retenção configurável, nenhuma transferência entre sistemas.
+IA responsável:
+ revisões de claim, proteção contra prompt injection em dados de leads e não execução de instruções vindas de fontes externas.
+08 · MISSÕES
+As três primeiras missões oficiais
+Iniciar com prova de funcionalidade interna, não com marketing automatizado.
+01
+M-001 · Primeiro lead
+Inserir lead sintético, registrar origem, disparar análise e gerar proposta de próxima ação — sem contato externo.
+02
+M-002 · Dossiê comercial
+Scout prepara dossiê de empresa fictícia/permitida, com fontes e campos faltantes, sem alucinar.
+03
+M-003 · Abordagem revisável
+Beacon redige mensagem com claims autorizados; aprovação humana obrigatória; Pledge cria tarefa.
+Critérios de término de missão
+Missão possui 
+correlationId
+, autor, status e etapas rastreáveis.
+Saídas têm origem, data e classificação 
+simulated
+ / 
+real
+.
+Handoff entre Aegis, Relay e executores é observável.
+Falhas e tentativas bloqueadas aparecem no painel, sem reenviar automaticamente ações irreversíveis.
+O aprovador pode rejeitar e o motivo é preservado.
+09 · PERFORMANCE
+Métricas e indicadores
+Nenhuma meta, taxa de conversão ou ROI foi considerada como resultado existente; a linha de base será medida.
+Indicador
+Definição operacional
+Fonte / regra de leitura
+Leads captados
+COUNT(lead.created) por período, deduplicado.
+LeadSource; separar teste de produção.
+Taxa de qualificação
+Leads qualificados ÷ leads avaliados no período.
+Score/Rubric com revisão humana.
+Tempo de resposta
+Mediana de primeira resposta válida − criação.
+Sem confundir rascunho com mensagem enviada.
+Conversão lead→reunião
+Reuniões confirmadas ÷ leads elegíveis.
+Não contar convite sem aceite como reunião.
+Conversão reunião→proposta
+Propostas enviadas e confirmadas ÷ reuniões realizadas.
+Proposta em rascunho não conta.
+Conversão proposta→cliente
+Negócios ganhos ÷ propostas válidas.
+Contrato/receita só com evidência.
+Qualidade das abordagens
+Rascunhos aprovados ÷ rascunhos avaliados.
+Aprovação humana com versão.
+Custo IA
+Tokens × preço informado do provedor + custos acessórios.
+Mock = simulado; preço indisponível = pendente.
+Erros e retries
+Falhas, reprocessamentos, erro por 100 runs.
+Jobs/outbox; falhas jamais ocultas.
+Segurança/consentimento
+Tentativas bloqueadas, opt-outs, incidentes.
+Gates de envio e audit events.
+Regra de medição:
+ não misturar leads sintéticos com reais, rascunhos com envios, convites com reuniões ou propostas com vendas. Todos os KPIs devem ter definição, origem, período e estado de verificação.
+10 · EXPERIÊNCIA
+Blueprint do escritório 3D
+Os personagens serão bonequinhos expressivos e originais; a forma visual não autoriza inventar ações de IA.
+PLANTA CONCEITUAL • CAMADA ISOMÉTRICA FUTURA
+6 ESTAÇÕES INICIAIS
+ESTAÇÃO 01
+Aegis
+Torre de Controle
+Central de missões, política, custo, aprovações e panorama.
+ESTAÇÃO 02
+Relay
+Central de Orquestração
+Fila de tarefas, distribuição e prazos.
+ESTAÇÃO 03
+Scout
+Observatório de Mercado
+Mapas, sinais, dossiês e fontes.
+ESTAÇÃO 04
+Meridian
+Sala de Qualificação
+Scoring, perguntas e decisões explicadas.
+ESTAÇÃO 05
+Beacon
+Estúdio de Abordagem
+Rascunhos, templates aprovados e política de canais.
+ESTAÇÃO 06
+Pledge
+Mesa de Compromissos
+Pendências, retornos e próximos passos.
+RECEPÇÃO / CRM · PAINEL DE MISSÕES · LINHA DO TEMPO · APROVAÇÕES
+Padrão de criação visual — qualidade obrigatória
+Estilo:
+ personagens originais cartunizados 3D, proporções fofas e expressivas, sem cópia de franquias ou personagens existentes; sem fotografias humanas.
+Asset por personagem:
+ imagem master ≥ 2048 px (produção visual), WebP/PNG otimizado para cards e modelo GLB/rig somente quando produzido; cada identidade em arquivo separado.
+Proibição de arte pobre:
+ não recortar miniaturas de grandes pôsteres, ampliar arquivos de baixa resolução, misturar padrões de iluminação, ou declarar “HD” sem inspecionar nitidez.
+Coerência:
+ 29 fichas com nome/ID, proporção, paleta de 3 cores, roupas/objeto do papel, modelo de expressão e variantes de estado.
+3D:
+ câmera ortográfica isométrica, seis estações, seletor de agente, histórico real ao clicar, LOD, lazy loading, fallback 2D, teclado e reduced motion.
+Tempo real:
+ Aegis/Relay/Scout/Meridian/Beacon/Pledge mostram indicadores derivados de eventos assinados e persistidos; cenário nunca inventa trabalho.
+Sequência visual:
+ Onda 00 = arquitetura e placeholder responsivo; Onda 05 = cenário e animações completas após o fluxo comercial real. A arte final dos 29 deve passar por homologação individual de nitidez.
+11 · PLANO
+Roadmap de execução por ondas
+Cada onda tem gate de passagem; não expandir escopo antes de fechar a anterior.
+00
+Onda 00 · Fundação independente
+Oferta/ICP hipotéticos, papéis, monorepo, políticas, dados mock, catálogo 29, UI shell.
+Gate: Docs+build+teste de fluxo sintético; 0 chamadas externas.
+01
+Onda 01 · Captura e CRM funcional
+Formulário próprio, deduplicação, pipelines, qualificações e governança de contatos.
+Gate: Lead real voluntário registrado com proveniência, sem vazamento.
+02
+Onda 02 · Inteligência comercial
+Pesquisa permitida, dossiês, scoring, revisão humana e fontes.
+Gate: Contas avaliadas com evidência auditável e correção.
+03
+Onda 03 · Comunicação autorizada
+E-mail e canais aceitos, opt-in, templates, envios aprovações e suppressions.
+Gate: Primeiro contato autorizado, registrado e opt-out respeitado.
+04
+Onda 04 · Conversão
+Agendamento, proposta versionada, CRM, handoff humano, análise de funil.
+Gate: Demonstração confirmada; sem inventar venda.
+05
+Onda 05 · Escritório visual 3D
+Cenário, seis bonequinhos 3D individuais, rigs, animações e fallback 2D.
+Gate: Eventos reais sincronizados e performance/acessibilidade medidas.
+06
+Onda 06 · Escala até 29
+Expandir por ROI, fontes e contratos; habilitar personas conforme executor validado.
+Gate: Cada agente só recebe status operacional após E2E real.
+12 · QUALIDADE
+Gates de homologação da Onda 00
+Critério explícito para não confundir uma demo bonita com sistema funcional.
+Gate
+Objetivo
+Critério de aceite
+Evidência obrigatória
+G00
+Verdade comercial
+Oferta e ICP classificados como aprovados ou pendentes; claims não verificados bloqueados.
+docs, fixture e testes de validação.
+G01
+Isolamento físico/lógico
+Nova raiz, banco, volumes, secrets, portas, containers; 0 dependências do Birthub.
+tree, env.example sanitizado e inspeção de containers.
+G02
+Reprodutibilidade
+Instalação, lint, tsc, testes e build sem passos ocultos.
+logs de comandos executados.
+G03
+Integridade do elenco
+29 IDs únicos, 9+15+4+1, seis ativos sem runtime presumido.
+teste de registry/catálogo.
+G04
+Autonomia/autorizações
+API bloqueia contato externo e ações proibidas sem aprovação.
+testes negativos e trilha de negação.
+G05
+Fluxo comercial interno
+Lead sintético percorre triagem→rascunho→aprovação sem envio.
+E2E com correlação e flag SIMULADO.
+G06
+Auditoria e eventos
+Eventos versionados, correlationId, autor, resultado e PII mínima.
+fixtures e consulta de audit trail.
+G07
+Experiência/estados
+6 estados reativos, aprovação/simulação explícitas; UI responsiva.
+smoke de UI, teclado e reduced-motion.
+G08
+Segurança de ambiente
+Sem segredo em código, DB/Redis localhost, bloqueio Docker remoto inseguro.
+scans, portas, registros de configuração.
+G09
+Governança
+Relatório do que foi implementado, testes reais, riscos, handoffs e próximos passos.
+relatório assinado pela execução.
+Veredito inicial:
+ AINDA NÃO EXECUTADO. Estes gates definem como Antigravity deverá provar a implementação. Nenhum gate pode ser considerado aprovado apenas porque está documentado aqui.
+13 · CONTROLE
+Riscos, decisões e bloqueios
+Questões que precisam de confirmação antes da ativação comercial.
+Prioridade
+Risco / pendência
+Decisão de controle
+Crítico
+Reutilização de repositório, banco ou Docker remoto inseguro
+Isolamento com testes; bloquear execução e reportar.
+Crítico
+Enviar comunicação não solicitada ou fora da política
+Bloqueio por padrão; opt-in/revisão humana/documentação.
+Alto
+Prometer funcionalidades, preços, integrações ou cases não verificados
+Claim registry versionado com status pendente.
+Alto
+Mostrar atividades simuladas como resultados reais
+Selo SIMULAÇÃO em tela e audit trail.
+Alto
+Personagens borrados/inconsistentes
+Master de arte individual; avaliação de nitidez por personagem.
+Médio
+Acoplar 3D ao backend e dificultar performance
+Eventos semânticos + render desacoplado + fallback 2D.
+Médio
+Custos de IA não monitorados
+Mock inicial; orçamento por execução, limite, kill switch.
+Médio
+Autonomia excessiva de Aegis/Relay
+Policy engine backend e revisão humana de ações sensíveis.
+Decisões pendentes registradas
+Definir catálogo oficial de ofertas, versões comercializáveis, preços e condições.
+Confirmar ICP, setores, região inicial e canais de comunicação permitidos.
+Escolher fornecedores de IA/pesquisa, orçamento máximo e política de tratamento de dados.
+Aprovar o diretor de arte dos 29 modelos individuais antes de animar.
+Definir origem do formulário de captura do escritório independente e eventual integração futura.
+14 · MÃO NA MASSA
+Primeiro prompt para Antigravity
+A missão completa já está embutida neste HTML e disponível em arquivo Markdown separado.
+⧉ Copiar prompt integral
+Recolher/expandir
+# ANTIGRAVITY — MISSÃO OFICIAL 00
+## Birthub Growth Office · Comercial Enlouquecidamente · Onda 00 (Fundação independente)
+Você atuará como **Arquiteto Líder + Supervisor de Execução da Onda 00** do novo produto **Birthub Growth Office (BGO)**. Seu trabalho é criar a FUNDAÇÃO REAL de um projeto independente para vender o software Birthub 360°, por meio de uma operação comercial multiagente que futuramente terá um escritório virtual 3D. **Não construa um clone do Birthub 360°.**
+### 1. Mandato e hierarquia de fontes
+1. Use como fonte principal `BIRTHUB_GROWTH_OFFICE_DOCUMENTO_MESTRE_ONDA_00_V1.html` e seu catálogo `BIRTHUB_GROWTH_OFFICE_CATALOGO_29.json` (fornecidos junto deste prompt).
+2. Utilize os dois documentos históricos de personagens (`agentes-birthhub-360.html` e `BIRTHUB360_CHARACTER_UNIVERSE_29.html`) somente se estiverem COPIADOS para uma pasta de referências do NOVO projeto. Nunca exija acesso ao repositório antigo.
+3. Se uma informação comercial do Birthub 360° não estiver comprovada (preço, plano, disponibilidade de recurso, SLA, integração), marque `PENDENTE_DE_VALIDACAO` e impeça o uso em mensagens externas. Não fabrique informações para completar tabelas.
+4. Distinga em documentação e tela: **IMPLEMENTADO**, **SIMULADO**, **PLANEJADO**, **BLOQUEADO**, **PENDENTE_DE_VALIDACAO**.
+5. Antes de cada mudança, exiba o plano e os diretórios-alvo; escreva somente no novo workspace.
+### 2. Regra absoluta: INDEPENDÊNCIA TOTAL
+- Crie/abra APENAS um novo projeto chamado `Birthub-Growth-Office` em diretório SEPARADO. Em Windows, sugestão: `C:\Users\Marks\Documents\GitHub\Birthub-Growth-Office` se existir e estiver livre; caso contrário use a pasta vazia selecionada pelo usuário. Não sobrescreva arquivos preexistentes sem análise.
+- **PROIBIDO**: editar, importar código, criar migrations, abrir `.env`, conectar banco, disparar workflows, chamar API interna, acessar volumes, alterar containers, modificar branches ou executar scripts do repositório `Birthub-360`.
+- **PROIBIDO** usar a mesma `DATABASE_URL`, `REDIS_URL`, credenciais, Docker network/volume, bucket ou secrets do Birthub 360°. Prove a separação por configuração, nomes e testes. Não tente ler o `.env` do Birthub para comparar.
+- Novo banco local: `birthub_growth_office_dev` (sugestão). Novos containers/volumes com prefixo `bgo_` e bind apenas em `127.0.0.1`; portas sugeridas frontend `4180`, API `4181`, PostgreSQL `5437`, Redis `6387`, todas verificadas quanto a conflitos.
+- Não use Docker daemon TCP sem autenticação/TLS, não utilize endpoints como `tcp://192.168.*:2375` e não publique PostgreSQL/Redis na LAN. Sem recurso Docker seguro, rode em modo mock e documente o bloqueio.
+- Não use infraestrutura paga nem publique serviço na Internet na Onda 00.
+### 3. Resultado esperado da Onda 00
+Entregar um **monorepo inicial compilável**, documentação comercial/técnica completa, catálogo íntegro com 29 personas e um **primeiro fluxo interno testável**, com dados sintéticos:
+`lead de demonstração (sintético) → registro local → triagem de Meridian → missão de Aegis → distribuição por Relay → preparação de dossiê de Scout → rascunho de Beacon → acompanhamento por Pledge → revisão humana → auditoria`.
+Este fluxo pode funcionar inicialmente com adapters `mock`, mas deve informar visualmente `MODO SIMULAÇÃO`; nenhum serviço poderá afirmar que enviou e-mail, WhatsApp, convite ou proposta real. O MVP da Onda 00 NÃO precisa de integração externa de IA. A porta de IA deve ser preparada para substituição por um provider real futuramente.
+### 4. Stack e organização inicial
+- `pnpm` workspace, TypeScript estrito, React + Vite (frontend), Node.js + Fastify (API), PostgreSQL isolado, Prisma ou equivalente avaliado e registrado em ADR, Redis + BullMQ para tarefas, SSE para eventos.
+- Para a **fundação** visual, desenhe o shell 2D responsivo com espaços reservados para o cenário. A implementação 3D com React Three Fiber + Three.js é **onda posterior**; a arquitetura do componente de cena deve estar especificada agora.
+- Dependências com versões compatíveis escolhidas a partir das documentações atuais; não copie cegamente versões do outro projeto.
+- Não acople a UI 3D a cada modelo de IA: use eventos semânticos persistidos e `AgentVisualState` derivado de `ExecutionRun`.
+- Estrutura sugerida:
+```text
+Birthub-Growth-Office/
+  apps/
+    web/                  # React, Vite, shell, CRM leve, painel de missões, office placeholder
+    api/                  # Fastify, auth local, resources HTTP, SSE
+    worker/               # jobs internos e adapters mock
+  packages/
+    contracts/            # schemas Zod/TS compartilhados, eventos e estados
+    agents/               # catálogo 29, registry, policies, tools, seis perfis ativos
+    commercial/           # lead, ICP, offer, qualification, pipeline, approvals
+    observability/        # audit events, logs, metrics
+    ui/                   # design tokens e componentes
+  prisma/                 # somente DB próprio, depois de validar conexão
+  infra/compose/          # Docker Compose com redes e volumes próprios
+  assets/characters/      # MANIFESTO de artes individuais, não imagens blurry ampliadas
+  docs/
+    onda-00/
+      00-ESCOPO-E-DECISOES.md
+      01-MANUAL-COMERCIAL.md
+      02-ARQUITETURA-E-ADR.md
+      03-CONTRATOS-DOS-AGENTES.md
+      04-MODELO-DE-DADOS.md
+      05-EVENTOS-E-APROVACOES.md
+      06-BLUEPRINT-ESCRITORIO-3D.md
+      07-MATRIZ-DE-TESTES-E-GATES.md
+      08-RISCOS-PENDENCIAS-E-ROADMAP.md
+      09-EVIDENCIAS-DE-EXECUCAO.md
+  tests/                   # unit, api, isolation, policies, smoke
+  .env.example            # placeholders sem segredos
+  README.md
+  AGENTS.md               # governança ESPECÍFICA DESTE NOVO PROJETO
+  pnpm-workspace.yaml
+```
+### 5. Invariantes de domínio
+- `Workspace` inicial próprio `birthub-growth`, preparado para um dia suportar mais organizações, mas **não habilite SaaS multi-tenant na Onda 00**.
+- Entidades mínimas: `Workspace`, `User`, `Role`, `OfferClaim`, `ICPProfile`, `Lead`, `LeadSource`, `ChannelPermission`, `Opportunity`, `Task`, `Mission`, `AgentDefinition`, `AgentAssignment`, `ExecutionRun`, `ExecutionStep`, `ApprovalRequest`, `CommercialDraft`, `EventOutbox`, `AuditEvent`.
+- Todo registro deve possuir ID, autoria, timestamps e workspace; dados de contato precisam ter provenance, uso permitido, minimização e suporte a exclusão/correção.
+- Status de lead: `new`, `triage`, `qualified`, `nurture`, `meeting_requested`, `proposal`, `won`, `lost`, `suppressed`. Defina transições explícitas e auditáveis.
+- Status de missões: `draft`, `queued`, `running`, `waiting_input`, `awaiting_approval`, `completed`, `failed`, `cancelled`.
+- Visual de agente: `idle`, `listening`, `processing`, `speaking`, `success`, `error`, MAIS indicador explícito `aguardando aprovação` e `simulado`, que não são ações ocultas.
+- Eventos versionados: `lead.created.v1`, `lead.qualified.v1`, `mission.created.v1`, `mission.assigned.v1`, `run.started.v1`, `run.step.completed.v1`, `draft.created.v1`, `approval.requested.v1`, `approval.decided.v1`, `run.completed.v1`, `run.failed.v1`.
+- Contrato de evento inclui `eventId`, `eventType`, `version`, `workspaceId`, `missionId?`, `agentId?`, `occurredAt`, `correlationId`, `payload` validado, e não publica PII desnecessária.
+- Fila com idempotência, retries com backoff, limites, dead-letter/quarentena de erros e botão de pausa. Agendamentos recorrentes usando **BullMQ Job Schedulers**, não APIs `repeat` legadas.
+### 6. Catálogo canônico de 29 personagens
+Preserve EXATAMENTE estes IDs e nomes, sem novos nomes concorrentes:
+- 9 pilares (`SEM runtime individual presumido`): Orbit/orbit, Nexus/nexus, Aria/aria, Vanguard/vanguard, Oracle/oracle, Core/core, Spark/spark, Echo/echo, Sudo/sudo.
+- 15 comerciais: Axiom/axiom, Beacon/beacon, Meridian/meridian, Forge/forge, Relay/relay, Helm/helm, Apex/apex, Ledger/ledger, Anchor/anchor, Seal/seal, Cipher/cipher, Harbinger/harbinger, Scout/scout, Pledge/pledge, Tribunal/tribunal.
+- 4 canais: Vox/vox, Scope/scope, Tracker/tracker, Tempo/tempo.
+- 1 supervisão: Aegis/aegis, vínculo conceitual `supervisor-central`.
+- Use `BIRTHUB_GROWTH_OFFICE_CATALOGO_29.json` como fonte dos papéis, descrições, cores, nomes, animações, comandos e ressalvas documentadas.
+- Os SVGs antigos são somente referência histórica de ID, nunca substitua o novo objetivo de **bonequinhos 3D de alta definição** com modelos independentes. NÃO recorte e amplie miniaturas de pôsteres e NÃO use imagens borradas como assets finais. Nesta onda, aceite placeholders identificados e produza `assets/characters/manifest.json` com especificação de arquivos futuros.
+- Diferencie `AgentDefinition` (capacidade) de `CharacterPersona` (visual). Personagem-pilar não implica executor autônomo.
+- Seis especialistas da Onda 00: `Aegis`, `Relay`, `Scout`, `Meridian`, `Beacon`, `Pledge`. Os 23 demais serão visíveis no catálogo como `Planejado`, sem simular funcionamento real.
+### 7. Contratos operacionais e autonomia dos seis
+- **Aegis:** planeja, delega, consolida e verifica políticas; sem direito a enviar mensagens, alterar orçamento ou aprovar a si mesmo.
+- **Relay:** coordena tarefas, SLAs e handoffs; sem ações externas autônomas.
+- **Scout:** pesquisa contas em fontes autorizadas e registra URLs/proveniência; sem coleta de dados sensíveis ou scraping contrário a regras de uso.
+- **Meridian:** qualifica com rubrica versionada, score explicável e indicação de lacunas; sem inventar informações.
+- **Beacon:** gera rascunhos de abordagem baseados somente em claims comerciais aprovados; **envio externo bloqueado** até integração autorizada e aprovação humana.
+- **Pledge:** cria tarefas e lembretes internos; não confirma reuniões nem envia follow-ups sem evidência/autorização.
+Níveis de autonomia:
+- `L0` observar/ler; `L1` analisar/sugerir; `L2` ação interna reversível com log; `L3` ação externa sensível SOMENTE após aprovação explícita; `L4` proibido (pagamento, contrato, disparo em massa, alteração de infraestrutura, acesso inter-tenant, bypass de política).
+- Políticas sempre no BACKEND; nunca confiar em botão desabilitado no frontend.
+- Criar matriz `Agent × Tool × Action × Risk × ApprovalRequired × Permission` e testes negativos.
+### 8. Manual comercial: verdade antes do marketing
+1. Criar uma ficha `Oferta Birthub 360°` com claims classificados como `APROVADO`, `PENDENTE_DE_VALIDACAO`, `REJEITADO` e versão.
+2. Propor ICP como HIPÓTESE: empresas B2B com rotina de SDR/BDR, pipeline e necessidade de métricas. Não apresentar o ICP como evidência de mercado validada.
+3. Definir dores, proposta de valor, objeções, jornadas inbound e outbound autorizado, estratégia de qualificação, roteiro de demonstração e handoff humano.
+4. Preços, condições comerciais, case studies, integrações, recursos de IA, WhatsApp/telefonia, SLAs e disponibilidades precisam de comprovação do dono do produto antes da publicação.
+5. Priorizar leads que solicitaram contato e canais com opt-in documentado. Não executar prospecção massiva, cold outreach automatizado ou ligações sem revisão legal/política.
+6. Em canais como WhatsApp, exigir opt-in válido, templates aprovados quando aplicável, supressão e human handoff. Política e LGPD são gates de implementação, não avisos cosméticos.
+### 9. UX e design do escritório
+- Marca `Birthub Growth Office — Comercial Enlouquecidamente`, sem fotos de pessoas reais; linguagem de bonequinhos originais 3D, expressivos, cartoon premium, coesa e HD.
+- Paleta: ciano `#00D4FF`, magenta `#FF2D9B`, dourado `#FFC107`, íris `#8B7DFF`, base escura `#0D0D0D`; títulos/subtítulos de destaque nas cores da marca, não puro branco/preto.
+- Tipografia preferida: Sora / Inter / IBM Plex Mono, com fallback local.
+- Ambientes futuros: Torre Aegis; Central Relay; Observatório Scout; Sala Meridian; Estúdio Beacon; Mesa Pledge; Recepção/CRM e Painel de Evidências.
+- Interface inicial: dashboard com missões e aprovações, lista de leads, timeline auditável, catálogo 29, cards dos seis agentes, estados visuais e placeholder do escritório.
+- O 3D terá câmera ortográfica isométrica, seleção de personagens, estações, tooltips, minimapa opcional, modo econômico, fallback 2D, `prefers-reduced-motion`, teclado e mobile. Nesta onda, apenas **contratos de UI e plano técnico**, não desperdiçar o ciclo com modelagem completa.
+- Cada futuro bonequinho deverá ter arquivo individual nítido (master 2048px para renders 2D e GLB/rig para 3D), identidade consistente, estados expressivos e assets rastreáveis. Não prometer modelos GLB que ainda não existem.
+### 10. Sequência de execução obrigatória
+**FASE A — Descoberta local segura:** verifique apenas o novo diretório; confirme ausência de links ou dependências para o Birthub 360°. Liste as decisões pendentes.
+**FASE B — Documentação:** escreva os 10 arquivos em `docs/onda-00` (acima); registre ADR de stack, fronteiras e modelo de permissão.
+**FASE C — Bootstrap:** crie o monorepo, configuração, Docker Compose isolado, exemplos de env, scripts, lint/tsc/test/build. Não execute migrations contra nenhum banco que não seja novo e explicitamente conferido.
+**FASE D — Contratos:** implemente schemas/serviços internos para os 29 personagens, seis papéis ativos, leads sintéticos, missões, aprovações, eventos e auditoria.
+**FASE E — Fluxo demonstrativo:** em modo mock rotulado, faça um lead sintético percorrer a jornada até rascunho e tarefa de aprovação (sem envio externo).
+**FASE F — Interface mínima:** dashboard, fila de aprovação, catálogo 29, timeline e office placeholder, com estados derivados dos eventos do backend.
+**FASE G — Qualidade:** testes unitários, integração com DB próprio quando disponível, policies negativas, API e smoke UI; compile e gere evidências.
+**FASE H — Governança:** documente resultados, limitações, erros, arquivos criados, riscos e status final dos gates. Somente commits locais atômicos e nomeados, se Git estiver configurado; sem push/deploy automático.
+### 11. Gates de aceite (falha = não aprovado)
+- `G00` escopo e fonte de verdade: papéis e oferta sem invenções; decisões pendentes expostas.
+- `G01` isolamento: nenhuma dependência/alteração do Birthub 360; redes, volumes, DB e secrets próprios.
+- `G02` reprodutibilidade: install, lint, typecheck, test, build executáveis e reportados.
+- `G03` catálogo: exatamente 29 personas (9+15+4+1), IDs únicos e seis ativos.
+- `G04` políticas: bloqueio real de envios externos, cobrança, contratos, pagamentos e bypass, com testes negativos.
+- `G05` trilha: fluxo de lead sintético até aprovação auditável, sem sucesso falso.
+- `G06` rastreabilidade: eventos com correlationId, origem, timestamp, resultado e autor.
+- `G07` visual: dashboard responsivo, estados honestos, marcador `SIMULAÇÃO`, acessibilidade básica.
+- `G08` segurança: sem segredos expostos, PII sintética, bind localhost, Docker seguro, política LGPD documentada.
+- `G09` relatório: evidências de cada comando e de cada gate, divergências, próximos handoffs.
+### 12. Proibições de maquiagem
+Não alterar testes apenas para ficar verde; não deixar botões sem ação aparente; não exibir leads, envios, calendário ou receitas fictícios como reais; não afirmar que os 29 agentes executam; não fazer push, deploy, disparos, scraping massivo, tarefas recorrentes pagas ou criação de credenciais sem aprovação. Não redesenhar Birthub 360°.
+### 13. Resposta final obrigatória
+Entregue ao usuário:
+1. Sumário executivo do que foi REALMENTE implementado.
+2. Lista de arquivos criados e árvore do novo repositório.
+3. Matriz de gates `G00–G09` com `APROVADO / BLOQUEADO / NÃO EXECUTADO`, evidência e justificativa.
+4. Resultados reais de lint, typecheck, testes, build e fluxo sintético (com saída resumida dos comandos).
+5. Confirmação demonstrável de isolamento, contendo nomes das bases/volumes/portas, sem mostrar segredos.
+6. Pendências bloqueadoras, hipóteses não validadas, decisões para a próxima onda.
+7. Plano de ativação da Onda 01, SEM executá-la automaticamente.
+**Regra final:** se houver impedimento de acesso/ambiente, entregue o máximo verificável que for possível, marque o gate bloqueado e NÃO declare sucesso sem evidência. Inicie pela FASE A agora; não peça autorização genérica para começar. Só solicite aprovação quando uma ação específica ultrapassar as restrições acima.
+15 · PROVENIÊNCIA
+Fontes, premissas e verificação
+Documento de escopo e arquitetura; não é certificado de produto em produção.
+Referência interna 1: 
+agentes-birthhub-360.html
+ — 29 IDs, papéis, vínculos, estados, cores, animações e comandos de voz (arquivo fornecido pelo usuário).
+Referência interna 2: 
+BIRTHUB360_CHARACTER_UNIVERSE_29.html
+ — evidências e ressalvas documentais de runtime (arquivo fornecido pelo usuário).
+Documentação oficial 
+React Three Fiber
+ — renderer 3D e compatibilidade React.
+Documentação oficial 
+BullMQ Job Schedulers
+ — jobs recorrentes atuais.
+Documentação oficial 
+ANPD
+ — avaliação de legítimo interesse, finalidade e salvaguardas.
+Política oficial 
+WhatsApp Business (23/09/2026)
+ — opt-in, templates e janela de 24h.
+Birthub Growth Office · Documento Mestre V1.0 · Arquitetura proposta / não implementada · Referências catalogadas nos anexos e fontes oficiais. O conteúdo comercial precisa de validação antes de divulgação.

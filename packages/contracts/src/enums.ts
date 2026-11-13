@@ -79,6 +79,24 @@ export type ClaimStatus = z.infer<typeof ClaimStatus>;
 export const TaskStatus = z.enum(["pending", "assigned", "done", "blocked", "cancelled"]);
 export type TaskStatus = z.infer<typeof TaskStatus>;
 
+export const OpportunityStage = z.enum([
+  "approved_target",
+  "researching",
+  "qualifying",
+  "qualified",
+  "outreach_drafted",
+  "awaiting_approval",
+  "followup_planned",
+  "nurture",
+  "won",
+  "lost",
+  "archived",
+]);
+export type OpportunityStage = z.infer<typeof OpportunityStage>;
+
+export const OpportunityPriority = z.enum(["low", "normal", "high", "critical"]);
+export type OpportunityPriority = z.infer<typeof OpportunityPriority>;
+
 /** Estados visuais do contrato de eventos do escritório (Onda 02/Fase 06). */
 export const VISUAL_STATES = ["idle","listening","processing","speaking","success","error"] as const;
 export type VisualState = (typeof VISUAL_STATES)[number];

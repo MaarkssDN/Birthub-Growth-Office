@@ -21,6 +21,10 @@ export const EventType = z.enum([
   "audit.recorded.v1",
   "scout.import.completed.v1",
   "scout.company.reviewed.v1",
+  "opportunity.created.v1",
+  "opportunity.stage_changed.v1",
+  "opportunity.priority_changed.v1",
+  "opportunity.mission_started.v1",
 ]);
 export type EventType = z.infer<typeof EventType>;
 
@@ -139,6 +143,39 @@ export const EventPayloads = {
     cnpj: z.string(),
     decision: z.string(),
     score: z.number(),
+  }),
+  "opportunity.created.v1": z.object({
+    opportunityId: z.string(),
+    companyId: z.string(),
+    cnpj: z.string().optional(),
+    stage: z.string(),
+    icpScore: z.number(),
+    priority: z.string().optional(),
+    approvedBy: z.string(),
+  }),
+  "opportunity.stage_changed.v1": z.object({
+    opportunityId: z.string(),
+    companyId: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    fromStage: z.string().optional(),
+    toStage: z.string().optional(),
+    actor: z.string(),
+    reason: z.string().optional(),
+  }),
+  "opportunity.priority_changed.v1": z.object({
+    opportunityId: z.string(),
+    from: z.string().optional(),
+    to: z.string().optional(),
+    fromPriority: z.string().optional(),
+    toPriority: z.string().optional(),
+    actor: z.string(),
+  }),
+  "opportunity.mission_started.v1": z.object({
+    opportunityId: z.string(),
+    companyId: z.string(),
+    missionId: z.string(),
+    requester: z.string(),
   }),
 } as const;
 

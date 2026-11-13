@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LeadStatus, Channel, ClaimStatus, ApprovalStatus, DraftStatus, TaskStatus } from "./enums";
+import { LeadStatus, Channel, ClaimStatus, ApprovalStatus, DraftStatus, TaskStatus, OpportunityStage, OpportunityPriority } from "./enums";
 
 export const Uuid = z.string().min(8);
 export const IsoDate = z.string();
@@ -159,6 +159,8 @@ export const Mission = z.object({
   id: Uuid,
   workspaceId: z.string(),
   leadId: Uuid.optional(),
+  companyId: z.string().optional(),
+  opportunityId: z.string().optional(),
   requester: z.string(),
   goal: z.string(),
   status: z.enum([
@@ -196,6 +198,9 @@ export const ExecutionRun = z.object({
     "awaiting_approval", "completed", "failed", "cancelled",
   ]),
   costUnits: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative().optional(),
+  input: z.record(z.unknown()).optional(),
+  output: z.record(z.unknown()).optional(),
   correlationId: z.string(),
   error: z.string().optional(),
   createdAt: IsoDate,
@@ -233,6 +238,8 @@ export const CommercialDraft = z.object({
   id: Uuid,
   missionId: Uuid.optional(),
   leadId: Uuid.optional(),
+  companyId: z.string().optional(),
+  opportunityId: z.string().optional(),
   channel: Channel,
   recipientPolicy: z.string(),
   template: z.string().optional(),
@@ -245,6 +252,44 @@ export const CommercialDraft = z.object({
   updatedAt: IsoDate,
 });
 export type CommercialDraft = z.infer<typeof CommercialDraft>;
+
+export const Opportunity = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  leadId: z.string().optional(),
+  companyId: z.string().optional(),
+  missionId: z.string().optional(),
+  stage: OpportunityStage,
+  priority: OpportunityPriority,
+  icpScore: z.number().int().min(0).max(100),
+  currentAgentId: z.string().optional(),
+  nextAction: z.string().optional(),
+  justification: z.string(),
+  source: z.string(),
+  approvedBy: z.string(),
+  approvedAt: IsoDate,
+  correlationId: z.string(),
+  lostReason: z.string().optional(),
+  lastActivityAt: IsoDate,
+  ownerId: z.string().optional(),
+  createdAt: IsoDate,
+  updatedAt: IsoDate,
+});
+export type Opportunity = z.infer<typeof Opportunity>;
+
+export const OpportunityHistory = z.object({
+  id: z.string(),
+  opportunityId: z.string(),
+  fromStage: z.string().optional(),
+  toStage: z.string().optional(),
+  action: z.string(),
+  actor: z.string(),
+  reason: z.string().optional(),
+  details: z.record(z.unknown()).optional(),
+  correlationId: z.string(),
+  occurredAt: IsoDate,
+});
+export type OpportunityHistory = z.infer<typeof OpportunityHistory>;
 
 export const AuditEvent = z.object({
   id: Uuid,

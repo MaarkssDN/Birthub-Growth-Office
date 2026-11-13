@@ -11,4 +11,5 @@ export * from "./orchestrator";
 export * from "./outbox-publisher";
 export * from "./scout-import";
 export * from "./company-store";
+export * from "./opportunity-store";
 export * from "./cost-ledger";

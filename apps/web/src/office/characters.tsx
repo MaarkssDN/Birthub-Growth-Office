@@ -1,4 +1,4 @@
-import { Component, Suspense, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
@@ -51,9 +51,10 @@ function AnimatedFigure({ state, children }: { state: VisualState; children: Rea
   return <group ref={g}>{children}</group>;
 }
 
-/** GLB oficial do agente — só renderiza se o arquivo carregar. */
-function GlbFigure({ agentId }: { agentId: string }) {
-  const { scene } = useGLTF(`/assets/characters/glb/${agentId}.glb`);
+/** GLB oficial do agente — anima clips `idle|listening|processing|speaking|success|error`
+ *  via AnimationMixer com crossfade de 250ms. Sem clips → fica na pose base. */
+function GlbFigure({ agentId, state }: { agentId: string; state: VisualState }) {
+  const { scene, animations } = useGLTF(`/assets/characters/glb/${agentId}.glb`);
   const cloned = useMemo(() => {
     const c = scene.clone(true);
     c.traverse((o) => {
@@ -66,6 +67,35 @@ function GlbFigure({ agentId }: { agentId: string }) {
     });
     return c;
   }, [scene]);
+
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const actionsRef = useRef(new Map<string, THREE.AnimationAction>());
+  const currentRef = useRef<THREE.AnimationAction | null>(null);
+
+  useEffect(() => {
+    const mixer = new THREE.AnimationMixer(cloned);
+    mixerRef.current = mixer;
+    actionsRef.current.clear();
+    for (const clip of animations) {
+      const a = mixer.clipAction(clip);
+      a.setLoop(THREE.LoopRepeat, Infinity);
+      actionsRef.current.set(clip.name, a);
+    }
+    const idle = actionsRef.current.get("idle");
+    if (idle) { idle.play(); currentRef.current = idle; }
+    return () => { mixer.stopAllAction(); mixerRef.current = null; };
+  }, [cloned, animations]);
+
+  useEffect(() => {
+    const next = actionsRef.current.get(state);
+    const prev = currentRef.current;
+    if (!next || next === prev) return;
+    next.reset().fadeIn(0.25).play();
+    prev?.fadeOut(0.25);
+    currentRef.current = next;
+  }, [state]);
+
+  useFrame((_, delta) => { mixerRef.current?.update(delta); });
   return <primitive object={cloned} />;
 }
 
@@ -79,19 +109,16 @@ class GlbBoundary extends Component<{ fallback: ReactNode; onError: () => void; 
 function Figure({ agentId, colors, state }: { agentId: string; colors: AgentColors; state: VisualState }) {
   const [glbFailed, setGlbFailed] = useState(false);
   const procedural = useMemo(() => buildAgentCharacter(agentId, colors), [agentId, colors]);
-  return (
-    <AnimatedFigure state={state}>
-      {glbFailed ? (
-        <primitive object={procedural} />
-      ) : (
-        <GlbBoundary fallback={<primitive object={procedural} />} onError={() => setGlbFailed(true)}>
-          <Suspense fallback={<primitive object={procedural} />}>
-            <GlbFigure agentId={agentId} />
-          </Suspense>
-        </GlbBoundary>
-      )}
-    </AnimatedFigure>
-  );
+  if (!glbFailed) {
+    return (
+      <GlbBoundary fallback={<AnimatedFigure state={state}><primitive object={procedural} /></AnimatedFigure>} onError={() => setGlbFailed(true)}>
+        <Suspense fallback={<AnimatedFigure state={state}><primitive object={procedural} /></AnimatedFigure>}>
+          <GlbFigure agentId={agentId} state={state} />
+        </Suspense>
+      </GlbBoundary>
+    );
+  }
+  return <AnimatedFigure state={state}><primitive object={procedural} /></AnimatedFigure>;
 }
 
 export function AgentAvatar({

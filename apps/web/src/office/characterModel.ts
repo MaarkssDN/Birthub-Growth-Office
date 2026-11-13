@@ -79,9 +79,10 @@ function torso(colors: AgentColors): THREE.Group {
   g.add(mesh(new THREE.TorusGeometry(0.345, 0.05, 10, 28), accent, [0, 0.62, 0], [Math.PI / 2, 0, 0]));
   // gola/colarinho
   g.add(mesh(new THREE.TorusGeometry(0.2, 0.05, 8, 20), std(colors.accent, { emissive: colors.accent, emissiveIntensity: 0.15 }), [0, 0.98, 0], [Math.PI / 2, 0, 0]));
-  // braços articulados simples
+  // braços articulados (nós nomeados p/ animação GLB: ArmL/ArmR)
   for (const x of [-0.46, 0.46]) {
     const arm = new THREE.Group();
+    arm.name = x < 0 ? "ArmL" : "ArmR";
     arm.position.set(x, 0.88, 0);
     arm.rotation.z = x > 0 ? -0.45 : 0.45;
     arm.add(mesh(new THREE.CapsuleGeometry(0.09, 0.34, 4, 12), accent, [0, -0.2, 0]));
@@ -176,8 +177,12 @@ export const CHARACTER_HEIGHT = 2.35;
 export function buildAgentCharacter(agentId: string, colors: AgentColors): THREE.Group {
   const root = new THREE.Group();
   root.name = `bgo-char-${agentId}`;
-  root.add(torso(colors));
-  root.add(head(colors));
-  root.add(accessory(agentId, colors));
+  const body = torso(colors);
+  body.name = "Body";
+  const hd = head(colors);
+  hd.name = "Head";
+  const acc = accessory(agentId, colors);
+  acc.name = "Acc";
+  root.add(body, hd, acc);
   return root;
 }

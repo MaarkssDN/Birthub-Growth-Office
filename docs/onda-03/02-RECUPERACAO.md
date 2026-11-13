@@ -16,8 +16,21 @@
 - Pausa/retomada de fila.
 - Semântica at-least-once documentada.
 
-## NÃO VERIFICADO (registrado, não escondido)
-- Cancelamento de job **ativo** durante execução.
-- Recuperação de job **stalled** enquanto handler roda (kill -9 no meio).
-- Redis **durável** (AOF/RDB): embed é volátil; `BGO_REDIS_URL` real não
-  foi exercitado com restart do próprio Redis.
+## Atualização Onda 04 (2026-11-13) — G32 agora VERIFICADO
+
+- **Stalled em execução**: teste `recupera job stalled EM EXECUÇÃO` —
+  handler trava, conexão Redis do worker é derrubada (lock expira), novo
+  worker detecta o job stalled e reexecuta (at-least-once). ✅
+- **Cancelamento de job ativo**: `cancel()` agora grava flag em
+  `bgo:cancel-requests` (Redis); processor verifica antes de executar e
+  handlers recebem `ctx.isCancelled()` para abortar cooperativamente.
+  Job cancelado vai para DLQ (auditável). Teste dedicado ✅.
+- Tuning exposto: `startWorker(concurrency, { stalledIntervalMs,
+  lockDurationMs, maxStalledCount })`.
+
+## Ainda NÃO VERIFICADO (registrado, não escondido)
+- Redis **durável em produção**: AOF do Memurai verificado com restart do
+  serviço (Onda 04), mas a suíte de testes usa redis-memory-server volátil.
+- `job.remove()` em job ativo não é suportado pelo BullMQ — cancelamento
+  de ativo é cooperativo: handlers que ignoram `ctx.isCancelled()` rodam
+  até o fim (documentado; demo-flow pode ganhar checkpoints futuros).

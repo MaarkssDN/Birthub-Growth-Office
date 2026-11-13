@@ -95,4 +95,65 @@ describe("worker persistente (G31/G32)", () => {
     expect((c.main.waiting ?? 0) + (c.main.delayed ?? 0)).toBe(0);
     await q.close();
   });
+
+  it("recupera job stalled EM EXECUÇÃO via at-least-once (G32)", async () => {
+    // Simula crash: worker pega o job, handler trava, conexão Redis do worker
+    // é derrubada (lock expira). Novo worker detecta stalled e reexecuta.
+    const key = `stall-${Date.now()}`;
+    let releaseFirst!: () => void;
+    const gate = new Promise<void>((r) => (releaseFirst = r));
+    let attempts = 0;
+
+    const q1 = new PersistentQueue(redisUrl);
+    q1.register("stall-test", async () => {
+      attempts += 1;
+      if (attempts === 1) await gate; // tentativa 1 fica presa = "crash"
+    });
+    const w1 = q1.startWorker(1, { lockDurationMs: 2_000, stalledIntervalMs: 1_000, maxStalledCount: 2 });
+    await q1.enqueue("stall-test", {}, { idempotencyKey: key, maxAttempts: 1 });
+    expect(await waitFor(() => attempts === 1, 15_000)).toBe(true);
+
+    // "morte" do worker: conexões Redis caem, lock do job expira
+    await (w1 as unknown as { disconnect(): Promise<void> }).disconnect().catch(() => undefined);
+    releaseFirst(); // destrava handler órfão para não vazar no processo
+
+    // novo consumidor: stalled checker move o job de volta para wait e reexecuta
+    const q2 = new PersistentQueue(redisUrl);
+    q2.register("stall-test", async () => {
+      attempts += 1;
+    });
+    q2.startWorker(1, { lockDurationMs: 2_000, stalledIntervalMs: 1_000, maxStalledCount: 2 });
+    const done = await waitFor(() => attempts >= 2, 30_000);
+    expect(done).toBe(true);
+    await q2.close();
+    await q1.close().catch(() => undefined); // worker1 já desconectado
+  }, 60_000);
+
+  it("cancelamento cooperativo de job ATIVO via ctx.isCancelled (G32)", async () => {
+    const q = new PersistentQueue(redisUrl);
+    let ranToEnd = false;
+    q.register("coop-test", async (_data, ctx) => {
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        if (ctx && (await ctx.isCancelled())) throw new Error("cancelado pelo operador");
+        await sleep(100);
+      }
+      ranToEnd = true;
+    });
+    q.startWorker(1);
+    const key = `coop-${Date.now()}`;
+    await q.enqueue("coop-test", {}, { idempotencyKey: key, maxAttempts: 1 });
+
+    // espera o job ficar ativo antes de cancelar
+    expect(await waitFor(async () => (await q.counts()).main.active === 1, 15_000)).toBe(true);
+    const t0 = Date.now();
+    expect(await q.cancel(key)).toBe(true);
+
+    // handler deve abortar cedo via ctx e o job vai para DLQ (auditável)
+    const dlq = await waitFor(async () => ((await q.counts()).dlq.failed ?? 0) + ((await q.counts()).dlq.waiting ?? 0) > 0, 15_000);
+    expect(dlq).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(10_000);
+    expect(ranToEnd).toBe(false);
+    await q.close();
+  }, 60_000);
 });

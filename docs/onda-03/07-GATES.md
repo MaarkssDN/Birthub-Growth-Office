@@ -4,7 +4,7 @@
 |---|---|---|
 | G30 Preservação | ✅ | 63→71 testes, 0 regressões; Ondas 00–02 intactas |
 | G31 Worker persistente | ✅ | `resolveStoreFromEnv` → PrismaStore; teste E2E outbox |
-| G32 Recuperação | ⚠️ PARCIAL | restart worker ✅, cancel pendente ✅, idempotência ✅; stalled-ativo e cancel-ativo **não verificados** |
+| G32 Recuperação | ✅ | restart worker ✅, cancel pendente ✅, idempotência ✅, **stalled em execução ✅, cancel ativo cooperativo ✅** (Onda 04) |
 | G33 IA real | ⚠️ PARCIAL | contrato OpenAI-compatible validado via stub; **sem credenciais reais** — ativação pendente |
 | G34 Escritório 3D | ✅ | cena iso navegável, WebGL + fallback |
 | G35 Personagens | ⚠️ PARCIAL | 6 bonequinhos procedurais individualizados; **protótipos, não assets finais** |

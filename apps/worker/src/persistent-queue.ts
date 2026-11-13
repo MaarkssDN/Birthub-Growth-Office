@@ -1,4 +1,5 @@
 import { Queue as RedisQueue, Worker, type Job as BullJob } from "bullmq";
+import { Redis } from "ioredis";
 
 /**
  * Fila persistente BullMQ (Onda 02) — substitui LocalQueue quando Redis real
@@ -28,7 +29,23 @@ export interface EnqueueOpts {
   correlationId?: string;
 }
 
+/** Contexto passado ao handler para cancelamento cooperativo (Onda 04/G32). */
+export interface JobContext {
+  /** true se cancel() foi solicitado para este idempotencyKey. Handlers
+   *  longos devem verificar periodicamente e abortar os efeitos restantes. */
+  isCancelled(): Promise<boolean>;
+}
+
+export type JobHandler = (data: PersistentJobData, ctx?: JobContext) => Promise<void> | void;
+
+export interface WorkerTuning {
+  stalledIntervalMs?: number;
+  lockDurationMs?: number;
+  maxStalledCount?: number;
+}
+
 const connOpts = (url: string) => ({ url, maxRetriesPerRequest: null as null });
+const CANCEL_SET = "bgo:cancel-requests";
 
 export class PersistentQueue {
   readonly name = "bgo-jobs";
@@ -37,17 +54,19 @@ export class PersistentQueue {
   private queue: RedisQueue<PersistentJobData>;
   private dlq: RedisQueue<PersistentJobData>;
   private worker?: Worker<PersistentJobData>;
-  private handlers = new Map<string, (data: PersistentJobData) => Promise<void> | void>();
+  private handlers = new Map<string, JobHandler>();
   private processedKeys = new Set<string>();
+  private readonly redis: Redis;
 
   constructor(redisUrl: string) {
     this.redisUrl = redisUrl;
     const connection = connOpts(redisUrl);
     this.queue = new RedisQueue<PersistentJobData>(this.name, { connection });
     this.dlq = new RedisQueue<PersistentJobData>(this.dlqName, { connection });
+    this.redis = new Redis(redisUrl, { maxRetriesPerRequest: null });
   }
 
-  register(type: string, handler: (data: PersistentJobData) => Promise<void> | void): void {
+  register(type: string, handler: JobHandler): void {
     this.handlers.set(type, handler);
   }
 
@@ -78,21 +97,40 @@ export class PersistentQueue {
   }
 
   /** Inicia o consumidor. BullMQ recupera jobs stalled automaticamente. */
-  startWorker(concurrency = 2, stalledIntervalMs = 10_000): Worker<PersistentJobData> {
+  startWorker(concurrency = 2, tuning: WorkerTuning = {}): Worker<PersistentJobData> {
     if (this.worker) return this.worker;
     this.worker = new Worker<PersistentJobData>(
       this.name,
       async (job: BullJob<PersistentJobData>) => {
+        const key = job.data.idempotencyKey;
+        // cancelamento cooperativo: flag em Redis cobre jobs ativos que o
+        // BullMQ não consegue remover (job.remove() falha em job 'active')
+        if ((await this.redis.sismember(CANCEL_SET, key)) === 1) {
+          await this.redis.srem(CANCEL_SET, key).catch(() => undefined);
+          await job.discard();
+          throw new Error(`job cancelado antes da execução: ${key}`);
+        }
         const handler = this.handlers.get(job.data.type);
         if (!handler) throw new Error(`sem handler para tipo: ${job.data.type}`);
-        await handler(job.data);
-        this.processedKeys.add(job.data.idempotencyKey);
+        const ctx: JobContext = {
+          isCancelled: async () => (await this.redis.sismember(CANCEL_SET, key)) === 1,
+        };
+        await handler(job.data, ctx);
+        this.processedKeys.add(key);
+        await this.redis.srem(CANCEL_SET, key).catch(() => undefined);
       },
-      { connection: connOpts(this.redisUrl), concurrency, stalledInterval: stalledIntervalMs },
+      {
+        connection: connOpts(this.redisUrl),
+        concurrency,
+        stalledInterval: tuning.stalledIntervalMs ?? 10_000,
+        lockDuration: tuning.lockDurationMs ?? 30_000,
+        maxStalledCount: tuning.maxStalledCount ?? 1,
+      },
     );
     this.worker.on("failed", (job, err) => {
       void (async () => {
         if (!job) return;
+        await this.redis.srem(CANCEL_SET, job.data.idempotencyKey).catch(() => undefined);
         const max = job.opts.attempts ?? 3;
         if (job.attemptsMade >= max) {
           await this.dlq.add(job.name, job.data, {
@@ -121,11 +159,27 @@ export class PersistentQueue {
     return (counts.paused ?? 0) > 0;
   }
 
+  /**
+   * Cancela por idempotencyKey. Jobs waiting/delayed são removidos do Redis;
+   * jobs ACTIVE não podem ser removidos pelo BullMQ — para eles gravamos uma
+   * flag em `bgo:cancel-requests` que o processor verifica antes de executar
+   * e que handlers longos podem consultar via `ctx.isCancelled()`.
+   */
   async cancel(idempotencyKey: string): Promise<boolean> {
     const job = await this.queue.getJob(idempotencyKey).catch(() => undefined);
     if (!job) return false;
-    await job.remove();
+    await this.redis.sadd(CANCEL_SET, idempotencyKey);
+    try {
+      await job.remove();
+    } catch {
+      // job ativo/travado: permanece na fila até o handler ceder via ctx
+    }
     return true;
+  }
+
+  /** true se há pedido de cancelamento pendente para a chave. */
+  async isCancelRequested(idempotencyKey: string): Promise<boolean> {
+    return (await this.redis.sismember(CANCEL_SET, idempotencyKey)) === 1;
   }
 
   async counts() {
@@ -140,5 +194,6 @@ export class PersistentQueue {
     await this.worker?.close();
     await this.queue.close();
     await this.dlq.close();
+    await this.redis.quit().catch(() => undefined);
   }
 }

@@ -99,3 +99,17 @@ sc.exe query Memurai
 - **G41 (infra durável)**: ✅ PostgreSQL nativo + Redis com AOF validados
   com restart real dos serviços. Ressalva: Memurai é Redis-compatível
   comunitário, não Redis oficial.
+
+## Atualização — G32 concluído (2026-11-13)
+
+Além da infra, o backlog de recuperação foi fechado nesta sessão:
+
+- `PersistentQueue` ganhou cancelamento cooperativo: `cancel()` marca
+  `bgo:cancel-requests` no Redis; processor verifica antes de executar;
+  handlers recebem `ctx.isCancelled()`.
+- `startWorker` aceita tuning `{ stalledIntervalMs, lockDurationMs,
+  maxStalledCount }`.
+- Novos testes em `tests/worker/persistent.test.ts`:
+  stalled em execução (disconnect do worker → reexecução por novo worker)
+  e cancelamento ativo (handler aborta via ctx → DLQ). Ambos PASS.
+- Total: **73/73 testes**, lint 0, typecheck 10/10.

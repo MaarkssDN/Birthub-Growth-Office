@@ -142,4 +142,67 @@ export const api = {
   me: () => req<{ user: SessionUser }>("/auth/me"),
   capture: (input: CaptureInput) =>
     req<CaptureResult>("/capture", { method: "POST", body: JSON.stringify(input) }),
+
+  // ---- Onda 10: Central Scout + Custos ----
+  scoutImport: (csv: string, fonte: string, filename?: string) =>
+    req<{
+      imported: number; duplicates: number;
+      rejected: { line: number; reason: string }[];
+      dossiers: { company: { cnpj: string; razaoSocial: string }; score: number }[];
+      batchId?: string; persisted: { inserted: number; duplicates: number };
+    }>("/scout/import", { method: "POST", body: JSON.stringify({ csv, fonte, ...(filename ? { filename } : {}) }) }),
+  scoutImports: () =>
+    req<{ id: string; fonte: string; imported: number; duplicates: number; rejected: number; importedBy: string; createdAt: string }[]>("/scout/imports"),
+  scoutCompanies: (f?: Record<string, string>) => {
+    const qs = new URLSearchParams(Object.entries(f ?? {}).filter(([, v]) => v)).toString();
+    return req<{ items: ScoutCompany[]; total: number; page: number; pageSize: number }>(`/scout/companies${qs ? `?${qs}` : ""}`);
+  },
+  scoutCompany: (id: string) =>
+    req<{ company: ScoutCompany; history: { action: string; actor: string; reason?: string; occurredAt: string }[] }>(`/scout/companies/${id}`),
+  scoutReview: (id: string, decision: "approved" | "rejected" | "archived", reason?: string) =>
+    req<ScoutCompany>(`/scout/companies/${id}/review`, { method: "POST", body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }) }),
+  scoutExportUrl: (status = "approved") => `/api/scout/export?reviewStatus=${status}`,
+  costs: (f?: Record<string, string>) => {
+    const qs = new URLSearchParams(Object.entries(f ?? {}).filter(([, v]) => v)).toString();
+    return req<CostsResponse>(`/costs${qs ? `?${qs}` : ""}`);
+  },
+  costsTariffs: () =>
+    req<{ id: string; version: string; provider: string; model: string; inputPer1MTokens: number; outputPer1MTokens: number; active: boolean }[]>("/costs/tariffs"),
 };
+
+export interface ScoutCompany {
+  id: string;
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
+  cnae?: string;
+  porte?: string;
+  situacao?: string;
+  municipio?: string;
+  uf?: string;
+  fonte: string;
+  importadoEm: string;
+  score: number;
+  scoreVersion: string;
+  reasons: string[];
+  gaps: string[];
+  reviewStatus: "pending" | "approved" | "rejected" | "archived";
+  reviewedBy?: string;
+  reviewReason?: string;
+}
+
+export interface CostsResponse {
+  usage: { items: {
+    id: string; missionId?: string; agentId: string; provider: string; model: string;
+    simulated: boolean; tokensIn: number; tokensOut: number; costUnits: number;
+    estimatedCost: number | null; billedCost: number | null; tariffVersion: string | null;
+    durationMs: number; status: string; occurredAt: string;
+  }[]; total: number };
+  budget: {
+    daily: { limit: number | null; used: number; remaining: number | null };
+    monthly: { limit: number | null; used: number; remaining: number | null };
+    blocked: boolean; reason?: string;
+  };
+  note: string;
+  simulatedDisclaimer: string;
+}

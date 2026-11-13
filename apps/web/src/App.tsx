@@ -2,11 +2,12 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useAsync } from "./hooks";
 import { api, setAuthToken, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
 import { CaptureView, LoginView } from "./views";
+import { CostsView, ScoutView } from "./scout";
 
 // Code-split: o escritório 3D (three.js ~1MB) só carrega ao abrir a aba
 const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ default: m.OfficeView })));
 
-type Tab = "capture" | "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "office";
+type Tab = "capture" | "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "scout" | "costs" | "office";
 
 const PUBLIC_TABS: Tab[] = ["capture"];
 const TABS: { id: Tab; label: string }[] = [
@@ -18,6 +19,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "approvals", label: "Aprovações" },
   { id: "catalog", label: "Catálogo 29" },
   { id: "timeline", label: "Timeline" },
+  { id: "scout", label: "Scout" },
+  { id: "costs", label: "Custos IA" },
   { id: "office", label: "Escritório" },
 ];
 
@@ -409,9 +412,11 @@ export default function App() {
         {user && tab === "approvals" && <ApprovalsView onDecide={decide} />}
         {user && tab === "catalog" && <CatalogView />}
         {user && tab === "timeline" && <TimelineView />}
+        {user && tab === "scout" && <ScoutView />}
+        {user && tab === "costs" && <CostsView />}
         {user && tab === "office" && (
           <Suspense fallback={<div className="card muted">Carregando escritório 3D…</div>}>
-            <OfficeView />
+            <OfficeView onOpenScout={() => setTab("scout")} />
           </Suspense>
         )}
         <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>

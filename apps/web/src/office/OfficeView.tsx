@@ -18,8 +18,7 @@ function webglAvailable(): boolean {
   } catch { return false; }
 }
 
-const FALLBACK_COLORS: Record<string, AgentColors> = {
-  aegis: { primary: "#ffc107", secondary: "#b8860b", accent: "#ffe08a" },
+const FALLBACK_COLORS: Record<string, AgentColors> = {  aegis: { primary: "#ffc107", secondary: "#b8860b", accent: "#ffe08a" },
   relay: { primary: "#00d4ff", secondary: "#0891b2", accent: "#7dd3fc" },
   scout: { primary: "#38bdf8", secondary: "#0369a1", accent: "#93c5fd" },
   meridian: { primary: "#a78bfa", secondary: "#6d28d9", accent: "#c4b5fd" },
@@ -27,7 +26,7 @@ const FALLBACK_COLORS: Record<string, AgentColors> = {
   pledge: { primary: "#34d399", secondary: "#047857", accent: "#a7f3d0" },
 };
 
-export function OfficeView() {
+export function OfficeView({ onOpenScout }: { onOpenScout?: () => void }) {
   const catalog = useAsync(() => api.catalog());
   const agents = useAsync(() => api.agents());
   const { events, agents: agentVisuals, live } = useOfficeEvents();
@@ -129,6 +128,9 @@ export function OfficeView() {
               <div className="kv"><span>Último evento</span><b className="mono tiny">{selVisual?.lastEvent ?? "—"}</b></div>
               {selVisual?.correlationId && <div className="kv"><span>Correlação</span><b className="mono tiny">{selVisual.correlationId.slice(0, 13)}…</b></div>}
               {selAgent?.visual.awaitingApproval && <span className="badge magenta">aprovação humana pendente</span>}
+              {selected === "scout" && onOpenScout && (
+                <ScoutPanel onOpen={onOpenScout} />
+              )}
               <h4>Eventos recentes</h4>
               {selEvents.length === 0 && <p className="muted tiny">Nenhum evento ainda — execute uma missão demo.</p>}
               {selEvents.map((e) => (
@@ -147,5 +149,19 @@ export function OfficeView() {
         </aside>
       </div>
     </Section>
+  );
+}
+
+/** Painel Scout — empresas pendentes de revisão na Central Scout (Onda 10). */
+function ScoutPanel({ onOpen }: { onOpen: () => void }) {
+  const pending = useAsync(() => api.scoutCompanies({ reviewStatus: "pending", pageSize: "1" }));
+  const approved = useAsync(() => api.scoutCompanies({ reviewStatus: "approved", pageSize: "1" }));
+  return (
+    <div className="kv" style={{ display: "block" }}>
+      <div className="kv"><span>Empresas p/ revisão</span><b>{pending.data?.total ?? "—"}</b></div>
+      <div className="kv"><span>Aprovadas p/ análise</span><b>{approved.data?.total ?? "—"}</b></div>
+      <p className="muted tiny">Dados persistidos da Central Scout — empresa importada não é lead até aprovação humana.</p>
+      <button className="btn small" onClick={onOpen}>Abrir Central Scout</button>
+    </div>
   );
 }

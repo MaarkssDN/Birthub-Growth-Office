@@ -8,6 +8,12 @@ const devAuth = process.env.BGO_DEV_AUTH === "1";
 async function main() {
   let store: StorePort;
   let persistence: "memory" | "postgres" = "memory";
+  let companies: import("@bgo/commercial").CompanyStorePort | undefined;
+  let costStore: import("@bgo/commercial").CostStorePort | undefined;
+  const envBudget = {
+    ...(process.env.BGO_BUDGET_DAILY_UNITS ? { dailyUnits: Number(process.env.BGO_BUDGET_DAILY_UNITS) } : {}),
+    ...(process.env.BGO_BUDGET_MONTHLY_UNITS ? { monthlyUnits: Number(process.env.BGO_BUDGET_MONTHLY_UNITS) } : {}),
+  };
 
   if (process.env.BGO_PERSISTENCE !== "memory") {
     try {
@@ -23,6 +29,10 @@ async function main() {
       await prismaStore.init();
       store = prismaStore;
       persistence = "postgres";
+      const { PrismaCompanyStore, PrismaCostStore } = await import("@bgo/db");
+      const wsId = prismaStore.workspace.id;
+      companies = new PrismaCompanyStore(prismaStore.prisma, wsId);
+      costStore = new PrismaCostStore(prismaStore.prisma, wsId);
       console.log(`[bgo-api] persistência PostgreSQL via ${process.env.DATABASE_URL?.replace(/:[^:@/]+@/, ":***@")} ${handle ? `(PGlite ${handle.dataDir})` : "(servidor externo)"}`);
     } catch (e) {
       console.warn(`[bgo-api] persistência indisponível (${(e as Error).message}) — caindo para memória (volátil)`);
@@ -32,7 +42,7 @@ async function main() {
     store = new Store();
   }
 
-  const app = buildApp({ store, devAuth, persistence });
+  const app = buildApp({ store, devAuth, persistence, ...(companies ? { companies } : {}), ...(costStore ? { costStore } : {}), costLimits: envBudget });
   await app.listen({ port, host });
   console.log(
     `[bgo-api] ${persistence === "postgres" ? "postgres" : "MOCK/memória"} em http://${host}:${port}` +

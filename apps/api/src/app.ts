@@ -22,6 +22,14 @@ import {
   ICP_HYPOTHESIS,
   approvedClaimIds,
   importCompaniesCsv,
+  MemoryCompanyStore,
+  MemoryCostStore,
+  CostLedger,
+  companiesToCsv,
+  type CompanyReviewDecision,
+  type CompanyReviewStatus,
+  type CompanyStorePort,
+  type CostStorePort,
   type StorePort,
   OutboxPublisher,
   type OutboxEvent,
@@ -36,6 +44,10 @@ export interface AppContext {
   devAuth?: boolean;
   /** modo de persistência para health/telemetria honesta */
   persistence?: "memory" | "postgres";
+  /** Onda 10 — central Scout e ledger de custos (default: memória). */
+  companies?: CompanyStorePort;
+  costStore?: CostStorePort;
+  costLimits?: { dailyUnits?: number; monthlyUnits?: number };
 }
 
 interface Actor {
@@ -65,6 +77,12 @@ const limiter = new RateLimiter();
 export function buildApp(ctx: AppContext): FastifyInstance {
   const { store } = ctx;
   const devAuth = ctx.devAuth === true;
+  const companies = ctx.companies ?? new MemoryCompanyStore();
+  const costs = new CostLedger(ctx.costStore ?? new MemoryCostStore(), ctx.costLimits ?? {});
+  // Ledger de custos alimentado pelo gateway — fire-and-forget, nunca quebra inferência.
+  aiGateway.usageSink = (rec) => {
+    void costs.record(rec).catch(() => undefined);
+  };
   const app = Fastify({ logger: false });
   void app.register(cookie);
 
@@ -473,8 +491,16 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       if (!lead) return reply.code(404).send({ error: "lead não encontrado" });
       leadData = { id: lead.id, name: lead.name, company: lead.company, interest: lead.interest, source: lead.source, status: lead.status };
     }
+    // Onda 10/G96 — orçamento diário/mensal bloqueia antes da inferência
+    const budget = await costs.assertBudget();
+    if (!budget.allowed) {
+      await audit(actor.id, "ai.budget_blocked", "AiUsage", "budget", correlationId, "denied", { reason: budget.reason });
+      return reply.code(429).send({ error: `orçamento de IA excedido: ${budget.reason}` });
+    }
     const result = await meridianDiagnose(aiGateway, {
       ...leadData,
+      ...(typeof body.missionId === "string" ? { missionId: body.missionId } : {}),
+      correlationId,
       ...(typeof body.icp === "object" && body.icp !== null ? { icp: body.icp } : { icp: ICP_HYPOTHESIS }),
       approvedClaims: approvedClaimIds(),
     });
@@ -485,7 +511,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     return { ...result, correlationId, simulated: true };
   });
 
-  // ---- Scout: importação CSV autorizada de empresas (Onda 09/G92-G94) ----
+  // ---- Scout: central de prospecção (Onda 10) ----
   app.post("/api/scout/import", async (req, reply) => {
     const actor = await requireAuth(req, reply);
     if (!actor) return;
@@ -493,12 +519,173 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     const csv = typeof body.csv === "string" ? body.csv : "";
     if (csv.length > 2_000_000) return reply.code(413).send({ error: "CSV excede 2MB" });
     const fonte = typeof body.fonte === "string" && body.fonte.trim() ? body.fonte.trim().slice(0, 120) : "csv-upload";
+    const filename = typeof body.filename === "string" ? body.filename.slice(0, 200) : undefined;
+    const missionId = typeof body.missionId === "string" ? body.missionId : undefined;
     const correlationId = randomUUID();
     const result = importCompaniesCsv(csv, { fonte });
-    await audit(actor.id, "scout.import", "CompanyImport", fonte, correlationId,
-      result.rejected.length === 0 || result.imported > 0 ? "allowed" : "denied",
-      { imported: result.imported, duplicates: result.duplicates, rejected: result.rejected.length });
-    return { ...result, correlationId, simulated: false, note: "dossiês = aderência heurística à ICP, não evidência de intenção de compra" };
+    // Persistência: lote + empresas deduplicadas por CNPJ (transação por empresa).
+    let batchId: string | undefined;
+    let persisted = { inserted: 0, duplicates: 0 };
+    try {
+      const batch = await companies.createImportBatch({
+        fonte,
+        ...(filename !== undefined ? { filename } : {}),
+        ...(missionId !== undefined ? { missionId } : {}),
+        correlationId,
+        totalRows: result.imported + result.duplicates + result.rejected.length,
+        imported: result.imported,
+        duplicates: result.duplicates,
+        rejected: result.rejected.length,
+        rejectedDetail: result.rejected.slice(0, 200),
+        importedBy: actor.id,
+      });
+      batchId = batch.id;
+      persisted = await companies.upsertCompanies(batch.id, result.dossiers, missionId);
+    } catch (e) {
+      await audit(actor.id, "scout.import.persist_failed", "CompanyImport", fonte, correlationId, "denied", {
+        error: (e as Error).message,
+      });
+      return reply.code(500).send({ error: "falha ao persistir importação — nenhuma empresa gravada parcialmente" });
+    }
+    await audit(actor.id, "scout.import", "CompanyImport", batchId ?? fonte, correlationId,
+      result.imported > 0 || result.rejected.length === 0 ? "allowed" : "denied",
+      { imported: result.imported, duplicates: result.duplicates, rejected: result.rejected.length, persistedInserted: persisted.inserted });
+    publish("scout.import.completed.v1", correlationId, {
+      batchId, imported: result.imported, duplicates: result.duplicates, rejected: result.rejected.length,
+    }, { agentId: "scout" });
+    return {
+      ...result,
+      batchId,
+      persisted,
+      correlationId,
+      simulated: false,
+      note: "dossiês = aderência heurística à ICP, não evidência de intenção de compra; empresa importada não é lead até revisão humana",
+    };
+  });
+
+  app.get("/api/scout/imports", async () => companies.listImportBatches());
+
+  app.get("/api/scout/companies", async (req) => {
+    const q = req.query as Record<string, string>;
+    const num = (v?: string) => (v !== undefined && v !== "" ? Number(v) : undefined);
+    return companies.listCompanies({
+      ...(num(q.minScore) !== undefined ? { minScore: num(q.minScore)! } : {}),
+      ...(num(q.maxScore) !== undefined ? { maxScore: num(q.maxScore)! } : {}),
+      ...(q.uf ? { uf: q.uf } : {}),
+      ...(q.municipio ? { municipio: q.municipio } : {}),
+      ...(q.cnae ? { cnae: q.cnae } : {}),
+      ...(q.porte ? { porte: q.porte } : {}),
+      ...(q.situacao ? { situacao: q.situacao } : {}),
+      ...(q.reviewStatus ? { reviewStatus: q.reviewStatus as CompanyReviewStatus } : {}),
+      ...(q.q ? { q: q.q } : {}),
+      ...(num(q.page) !== undefined ? { page: num(q.page)! } : {}),
+      ...(num(q.pageSize) !== undefined ? { pageSize: num(q.pageSize)! } : {}),
+    });
+  });
+
+  app.get("/api/scout/companies/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const company = await companies.getCompany(id);
+    if (!company) return reply.code(404).send({ error: "empresa não encontrada" });
+    return { company, history: await companies.companyHistory(id) };
+  });
+
+  app.post("/api/scout/companies/:id/review", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator" && act.role !== "approver") {
+      return reply.code(403).send({ error: "role insuficiente para revisar empresa" });
+    }
+    const id = (req.params as { id: string }).id;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const decision = body.decision;
+    if (decision !== "approved" && decision !== "rejected" && decision !== "archived") {
+      return reply.code(400).send({ error: "decision deve ser approved|rejected|archived" });
+    }
+    const reason = typeof body.reason === "string" ? body.reason.slice(0, 500) : undefined;
+    const correlationId = randomUUID();
+    try {
+      const company = await companies.reviewCompany(id, decision as CompanyReviewDecision, act.id, reason);
+      await audit(act.id, `scout.company.${decision}`, "Company", id, correlationId, "allowed", {
+        cnpj: company.cnpj, score: company.score, ...(reason !== undefined ? { reason } : {}),
+      });
+      publish("scout.company.reviewed.v1", correlationId, {
+        companyId: id, cnpj: company.cnpj, decision, score: company.score,
+      }, { agentId: "scout" });
+      return company;
+    } catch (e) {
+      return reply.code(404).send({ error: (e as Error).message });
+    }
+  });
+
+  // Exportação autorizada — somente aprovadas por padrão; células sanitizadas contra formula injection.
+  app.get("/api/scout/export", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator") {
+      return reply.code(403).send({ error: "exportação restrita a owner/operator" });
+    }
+    const q = req.query as { reviewStatus?: string };
+    const status = q.reviewStatus ?? "approved";
+    const page = await companies.listCompanies({ reviewStatus: status as CompanyReviewStatus, pageSize: 5000 });
+    const csv = companiesToCsv(page.items);
+    await audit(act.id, "scout.export", "Company", status, randomUUID(), "allowed", {
+      count: page.items.length, reviewStatus: status,
+    });
+    reply.header("content-type", "text/csv; charset=utf-8");
+    reply.header("content-disposition", `attachment; filename="bgo-scout-${status}-${Date.now()}.csv"`);
+    return reply.send(csv);
+  });
+
+  // ---- Custos de IA (Onda 10 / G95-G96) ----
+  app.get("/api/costs", async (req) => {
+    const q = req.query as { missionId?: string; agentId?: string; provider?: string; simulated?: string; from?: string; to?: string; limit?: string; offset?: string };
+    const [usage, budget] = await Promise.all([
+      costs.usage({
+        ...(q.missionId ? { missionId: q.missionId } : {}),
+        ...(q.agentId ? { agentId: q.agentId } : {}),
+        ...(q.provider ? { provider: q.provider } : {}),
+        ...(q.simulated === "true" || q.simulated === "false" ? { simulated: q.simulated === "true" } : {}),
+        ...(q.from ? { from: q.from } : {}),
+        ...(q.to ? { to: q.to } : {}),
+        ...(q.limit ? { limit: Number(q.limit) } : {}),
+        ...(q.offset ? { offset: Number(q.offset) } : {}),
+      }),
+      costs.budgetStatus(),
+    ]);
+    return {
+      usage,
+      budget,
+      note: "estimatedCost é estimativa por tarifa versionada — nunca valor faturado; billedCost só existe quando informado pelo provedor",
+      simulatedDisclaimer: "registros simulated=true são consumo de mock, não despesa real",
+    };
+  });
+
+  app.get("/api/costs/tariffs", async () => costs.tariffs());
+
+  app.post("/api/costs/tariffs", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner") return reply.code(403).send({ error: "tarifas restritas a owner" });
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" ? Number(v) : NaN);
+    const tariff = {
+      version: typeof body.version === "string" ? body.version.slice(0, 60) : "",
+      provider: typeof body.provider === "string" ? body.provider.slice(0, 60) : "",
+      model: typeof body.model === "string" ? body.model.slice(0, 120) : "",
+      currency: typeof body.currency === "string" ? body.currency.slice(0, 8) : "USD",
+      inputPer1MTokens: num(body.inputPer1MTokens),
+      outputPer1MTokens: num(body.outputPer1MTokens),
+      active: body.active !== false,
+    };
+    if (!tariff.version || !tariff.provider || !tariff.model || !Number.isFinite(tariff.inputPer1MTokens) || !Number.isFinite(tariff.outputPer1MTokens)) {
+      return reply.code(400).send({ error: "tarifa exige version, provider, model, inputPer1MTokens, outputPer1MTokens" });
+    }
+    if (tariff.inputPer1MTokens < 0 || tariff.outputPer1MTokens < 0) {
+      return reply.code(400).send({ error: "tarifas não podem ser negativas" });
+    }
+    const created = await costs.addTariff(tariff);
+    await audit(act.id, "costs.tariff.create", "AiTariff", created.id, randomUUID(), "allowed", {
+      version: created.version, provider: created.provider, model: created.model,
+    });
+    return reply.code(201).send(created);
   });
 
   app.post("/api/policy/evaluate", async (req) => {

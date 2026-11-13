@@ -109,3 +109,27 @@ describe("OutboxPublisher (G71)", () => {
     expect(store.published.has("s1")).toBe(true);
   });
 });
+
+describe("OutboxPublisher — reconciliação de legados (G81)", () => {
+  it("baselineMode=deliver preserva pendentes e os emite no drain", async () => {
+    const store = makeStore([ev("leg-1", "2020-01-01T00:00:00.000Z")]);
+    const emitted: string[] = [];
+    const pub = new OutboxPublisher(store, (e) => { emitted.push(e.eventId); }, {
+      baselineCutoff: "2026-03-01T00:00:00.000Z", baselineMode: "deliver",
+    });
+    expect(await pub.baseline()).toBe(0);
+    expect(store.published.size).toBe(0); // nada descartado
+    await pub.drainOnce();
+    expect(emitted).toEqual(["leg-1"]);
+  });
+  it("baselineMode=skip não marca nada; drain entrega tudo", async () => {
+    const store = makeStore([ev("leg-2", "2020-01-01T00:00:00.000Z")]);
+    const emitted: string[] = [];
+    const pub = new OutboxPublisher(store, (e) => { emitted.push(e.eventId); }, {
+      baselineCutoff: "2026-03-01T00:00:00.000Z", baselineMode: "skip",
+    });
+    expect(await pub.baseline()).toBe(0);
+    await pub.drainOnce();
+    expect(emitted).toEqual(["leg-2"]);
+  });
+});

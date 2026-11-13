@@ -43,9 +43,16 @@ export interface OutboxPublisherOptions {
   intervalMs?: number;
   batchSize?: number;
   maxAttempts?: number;
-  /** eventos com occurredAt < startedAt são marcados sem reemitir (baseline) */
+  /** eventos com occurredAt < startedAt são candidatos a baseline.
+   *  ATENÇÃO: occurredAt NÃO comprova entrega — ver baselineMode. */
   baselineCutoff?: string;
-  onMetric?: (name: keyof PublisherMetrics | "drain", value?: number) => void;
+  /** Estratégia de reconciliação de eventos legados (pré-publisher):
+   *  - "mark" (default): marca como publicados SEM reemitir — usar apenas
+   *    quando se assume que o evento já foi entregue ao vivo;
+   *  - "deliver": não marca — drain os emite normalmente (replay único);
+   *  - "skip": não faz baseline — tudo pendente é drenado. */
+  baselineMode?: "mark" | "deliver" | "skip";
+  onMetric?: (name: keyof PublisherMetrics | "drain" | "baseline", value?: number) => void;
 }
 
 interface PendingState { attempts: number; nextAttemptAt: number }
@@ -70,8 +77,13 @@ export class OutboxPublisher {
 
   metricsSnapshot(): PublisherMetrics { return { ...this.metrics }; }
 
-  /** Marca eventos anteriores ao cutoff como publicados (baseline único). */
+  /** Reconciliação de eventos legados. Retorna quantos foram marcados. */
   async baseline(): Promise<number> {
+    const mode = this.opts.baselineMode ?? "mark";
+    if (mode === "skip" || mode === "deliver") {
+      this.opts.onMetric?.("baseline", 0);
+      return 0; // pendentes preservados — drain os entrega
+    }
     const old = await this.store.listUnpublishedEvents(10000);
     let n = 0;
     for (const ev of old) {
@@ -80,6 +92,7 @@ export class OutboxPublisher {
         n++;
       }
     }
+    this.opts.onMetric?.("baseline", n);
     this.opts.onMetric?.("drain");
     return n;
   }

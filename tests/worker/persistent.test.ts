@@ -26,10 +26,13 @@ beforeAll(async () => {
   const TEST_PG_PORT = 5441;
   const pg = await startPglite(mkdtempSync(join(tmpdir(), "bgo-test-pg-")), TEST_PG_PORT);
   process.env.DATABASE_URL = databaseUrlFor(TEST_PG_PORT);
-  // aplica a migration versionada direto na instância PGlite (idempotente não é;
-  // dataDir é temporário, então sempre fresco)
-  const sql = readFileSync("prisma/migrations/20250101000000_init_onda01/migration.sql", "utf-8");
-  await pg.db.exec(sql);
+  // aplica as migrations versionadas direto na instância PGlite
+  const sql01 = readFileSync("prisma/migrations/20250101000000_init_onda01/migration.sql", "utf-8");
+  const sql10 = readFileSync("prisma/migrations/20261113000000_onda10_scout_costs/migration.sql", "utf-8");
+  const sql11 = readFileSync("prisma/migrations/20261113183000_onda11_commercial_pipeline/migration.sql", "utf-8");
+  await pg.db.exec(sql01);
+  await pg.db.exec(sql10);
+  await pg.db.exec(sql11);
   store = new PrismaStore();
   await store.init();
   redis = new RedisMemoryServer({ instance: { port: 6391, ip: "127.0.0.1" } });

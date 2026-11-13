@@ -3,7 +3,7 @@ const OUT = "../docs/onda-01/evidencias";
 const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
 const results = [];
 const ok = (n, c, extra="") => { results.push(`${c?"PASS":"FAIL"} ${n} ${extra}`); };
-const browser = await chromium.launch({ executablePath: EDGE, headless: true });
+const browser = await chromium.launch({ headless: true });
 
 async function shot(name, w, h, fn) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h } });
@@ -32,7 +32,7 @@ await shot("desktop-login-pipeline", 1440, 900, async (page) => {
   await page.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
   await page.locator(".card").last().locator("input[type=email]").fill("owner@bgo.local");
-  await page.locator(".card").last().locator("input[type=password]").fill("smoke-pass-123");
+  await page.locator(".card").last().locator("input[type=password]").fill(process.env.BGO_TEST_PASSWORD ?? "bgo-dev-local-2026");
   await page.click("button:has-text('Entrar')");
   await page.waitForSelector("text=Fluxo demonstrativo", { timeout: 8000 });
   ok("desktop login + dashboard", true);

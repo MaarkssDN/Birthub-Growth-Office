@@ -1,9 +1,9 @@
 import { chromium } from "playwright-core";
 const OUT = "docs/onda-03/evidencias";
-const EDGE = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe";
+// Chromium baixado via playwright-core install
 const results = [];
 const ok = (n, c, extra = "") => results.push(`${c ? "PASS" : "FAIL"} ${n} ${extra}`);
-const browser = await chromium.launch({ executablePath: EDGE, headless: true });
+const browser = await chromium.launch({ headless: true });
 
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
@@ -12,7 +12,7 @@ page.on("console", (m) => { if (m.type() === "error") results.push("CONSOLE-ERR 
 
 await page.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
 await page.locator(".card").last().locator("input[type=email]").fill("owner@bgo.local");
-await page.locator(".card").last().locator("input[type=password]").fill("dev-local-only");
+await page.locator(".card").last().locator("input[type=password]").fill(process.env.BGO_TEST_PASSWORD ?? "bgo-dev-local-2026");
 await page.click("button:has-text('Entrar')");
 await page.waitForSelector("text=Fluxo demonstrativo", { timeout: 8000 });
 ok("login", true);
@@ -44,7 +44,7 @@ const mp = await mctx.newPage();
 mp.on("pageerror", (e) => results.push("MOBILE PAGEERROR " + e.message));
 await mp.goto("http://127.0.0.1:4180/", { waitUntil: "domcontentloaded" });
 await mp.locator(".card").last().locator("input[type=email]").fill("owner@bgo.local");
-await mp.locator(".card").last().locator("input[type=password]").fill("dev-local-only");
+await mp.locator(".card").last().locator("input[type=password]").fill(process.env.BGO_TEST_PASSWORD ?? "bgo-dev-local-2026");
 await mp.click("button:has-text('Entrar')");
 await mp.waitForSelector("text=Fluxo demonstrativo", { timeout: 8000 });
 await mp.click("nav >> text=Escritório");

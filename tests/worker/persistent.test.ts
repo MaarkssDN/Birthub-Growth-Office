@@ -22,8 +22,10 @@ async function waitFor(cond: () => Promise<boolean> | boolean, timeoutMs = 25000
 }
 
 beforeAll(async () => {
-  const pg = await startPglite(mkdtempSync(join(tmpdir(), "bgo-test-pg-")));
-  process.env.DATABASE_URL = databaseUrlFor();
+  // porta dedicada: 5437 pode estar ocupada pelo Postgres nativo (Onda 04)
+  const TEST_PG_PORT = 5441;
+  const pg = await startPglite(mkdtempSync(join(tmpdir(), "bgo-test-pg-")), TEST_PG_PORT);
+  process.env.DATABASE_URL = databaseUrlFor(TEST_PG_PORT);
   // aplica a migration versionada direto na instância PGlite (idempotente não é;
   // dataDir é temporário, então sempre fresco)
   const sql = readFileSync("prisma/migrations/20250101000000_init_onda01/migration.sql", "utf-8");

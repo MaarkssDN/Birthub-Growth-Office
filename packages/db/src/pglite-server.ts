@@ -46,7 +46,7 @@ export function databaseUrlFor(port = PGLITE_PORT): string {
   return `postgresql://postgres:postgres@127.0.0.1:${port}/${PGLITE_DATABASE}?sslmode=disable&connection_limit=1`;
 }
 
-export async function startPglite(dataDir = DEFAULT_DATA_DIR): Promise<PgliteHandle> {
+export async function startPglite(dataDir = DEFAULT_DATA_DIR, port = PGLITE_PORT): Promise<PgliteHandle> {
   if (handle) return handle;
   installDisconnectGuard();
   mkdirSync(dataDir, { recursive: true });
@@ -60,13 +60,13 @@ export async function startPglite(dataDir = DEFAULT_DATA_DIR): Promise<PgliteHan
 
   const server = new PGLiteSocketServer({
     db,
-    port: PGLITE_PORT,
+    port,
     host: PGLITE_HOST,
     // PGliteSocketServer aceita `database` opcional para multi-db
   });
   await server.start();
 
-  handle = { db, server, dataDir, databaseUrl: databaseUrlFor() };
+  handle = { db, server, dataDir, databaseUrl: databaseUrlFor(port) };
   return handle;
 }
 

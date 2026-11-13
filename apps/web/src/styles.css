@@ -58,9 +58,16 @@ main { flex: 1; padding: 20px; max-width: 1400px; width: 100%; margin: 0 auto; }
 .card {
   background: var(--surface); border: 1px solid #26262e;
   border-radius: var(--radius); padding: 16px;
+  max-width: 100%; overflow-x: auto;
 }
 .card h3 { margin-top: 0; }
 .card .muted { color: var(--text-dim); }
+.table-wrap { width: 100%; overflow-x: auto; }
+input, select, textarea {
+  background: var(--surface-alt); color: var(--text);
+  border: 1px solid #33333f; border-radius: 8px;
+  padding: 6px 10px; font: inherit; max-width: 100%;
+}
 
 .badge {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
@@ -130,6 +137,8 @@ tr:hover td { background: #1a1a20; }
 @media (max-width: 720px) {
   main { padding: 12px; }
   .nav { margin-left: 0; }
+  .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: 1fr; }
+  .kv { grid-template-columns: 110px 1fr; }
 }
 
 /* ---- Escritório 3D (Onda 03) ---- */

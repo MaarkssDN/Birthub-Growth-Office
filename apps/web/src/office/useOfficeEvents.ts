@@ -24,8 +24,11 @@ export function eventToVisualState(e: EventItem): { agentId: string; state: Visu
   switch (e.eventType) {
     case "run.started.v1":
     case "run.step.completed.v1":
+    case "opportunity.mission_started.v1":
       return { agentId, state: "processing" };
     case "mission.assigned.v1":
+    case "opportunity.stage_changed.v1":
+    case "opportunity.priority_changed.v1":
       return { agentId, state: "listening" };
     case "draft.created.v1":
     case "approval.requested.v1":
@@ -34,6 +37,9 @@ export function eventToVisualState(e: EventItem): { agentId: string; state: Visu
     case "run.completed.v1":
     case "approval.decided.v1":
     case "draft.decided.v1":
+    case "scout.import.completed.v1":
+    case "scout.company.reviewed.v1":
+    case "opportunity.created.v1":
       return { agentId, state: "success" };
     case "run.failed.v1":
     case "audit.denied.v1":
@@ -93,11 +99,25 @@ export function useOfficeEvents() {
     }).catch(() => undefined);
 
     const types = [
-      "run.started.v1", "run.step.completed.v1", "mission.assigned.v1",
-      "draft.created.v1", "approval.requested.v1", "lead.qualified.v1",
-      "run.completed.v1", "approval.decided.v1", "draft.decided.v1",
-      "run.failed.v1", "audit.denied.v1", "mission.status_changed.v1",
+      "run.started.v1",
+      "run.step.completed.v1",
+      "mission.assigned.v1",
+      "draft.created.v1",
+      "approval.requested.v1",
+      "lead.qualified.v1",
+      "run.completed.v1",
+      "approval.decided.v1",
+      "draft.decided.v1",
+      "run.failed.v1",
+      "audit.denied.v1",
+      "mission.status_changed.v1",
       "lead.created.v1",
+      "scout.import.completed.v1",
+      "scout.company.reviewed.v1",
+      "opportunity.created.v1",
+      "opportunity.stage_changed.v1",
+      "opportunity.priority_changed.v1",
+      "opportunity.mission_started.v1",
     ];
     const es = new EventSource("/api/events/stream");
     const onAny = (ev: MessageEvent) => {

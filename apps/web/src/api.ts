@@ -42,6 +42,8 @@ export interface Mission {
   goal: string;
   status: string;
   leadId?: string;
+  companyId?: string;
+  opportunityId?: string;
   correlationId: string;
   createdAt: string;
 }
@@ -53,8 +55,13 @@ export interface Approval {
   scope: string;
   reason: string;
   requestedBy: string;
+  approverRole?: string;
   status: string;
   preview: Record<string, unknown>;
+  decidedBy?: string;
+  decidedAt?: string;
+  decidedReason?: string;
+  correlationId?: string;
   createdAt: string;
 }
 
@@ -88,6 +95,7 @@ export interface EventItem {
   eventId: string;
   eventType: string;
   agentId?: string;
+  missionId?: string;
   occurredAt: string;
   correlationId: string;
   payload: Record<string, unknown>;
@@ -98,6 +106,7 @@ export interface AuditItem {
   actor: string;
   action: string;
   entity: string;
+  entityId?: string;
   outcome: string;
   occurredAt: string;
   correlationId: string;
@@ -112,6 +121,159 @@ export interface CaptureInput {
 }
 export interface CaptureResult { leadId: string; duplicate: boolean; status: string; message: string }
 
+export interface ScoutCompany {
+  id: string;
+  batchId?: string;
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia?: string;
+  cnae?: string;
+  porte?: string;
+  situacao?: string;
+  municipio?: string;
+  uf?: string;
+  fonte: string;
+  importadoEm: string;
+  score: number;
+  scoreVersion: string;
+  reasons: string[];
+  gaps: string[];
+  reviewStatus: "pending" | "approved" | "rejected" | "archived";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewReason?: string;
+  opportunityId?: string;
+  opportunityStage?: string;
+}
+
+export interface OpportunityRecord {
+  id: string;
+  workspaceId: string;
+  companyId: string;
+  leadId?: string;
+  missionId?: string;
+  stage: string;
+  priority: "low" | "normal" | "high" | "critical";
+  icpScore: number;
+  currentAgentId?: string;
+  nextAction?: string;
+  justification: string;
+  source: string;
+  approvedBy: string;
+  approvedAt: string;
+  lostReason?: string;
+  ownerId?: string;
+  correlationId: string;
+  lastActivityAt: string;
+  createdAt: string;
+  updatedAt: string;
+  company?: ScoutCompany;
+  pendingApprovalsCount?: number;
+}
+
+export interface OpportunityHistoryRecord {
+  id: string;
+  opportunityId: string;
+  fromStage?: string;
+  toStage: string;
+  action: string;
+  actor: string;
+  reason?: string;
+  details?: Record<string, unknown>;
+  correlationId: string;
+  occurredAt: string;
+}
+
+export interface OpportunitiesPageResponse {
+  items: OpportunityRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  stageCounts: Record<string, number>;
+  approvedCompaniesReady: ScoutCompany[];
+  stageLabels: Record<string, string>;
+  validTransitions: Record<string, string[]>;
+}
+
+export interface OpportunityRunRecord {
+  id: string;
+  missionId: string;
+  agentId: string;
+  status: string;
+  mock: boolean;
+  costUnits: number;
+  durationMs?: number;
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+  correlationId: string;
+  steps?: {
+    id: string;
+    index: number;
+    tool: string;
+    action: string;
+    status: string;
+    inputRef: string;
+    outputRef?: string;
+  }[];
+}
+
+export interface OpportunityDraftRecord {
+  id: string;
+  missionId: string;
+  opportunityId?: string;
+  companyId?: string;
+  channel: string;
+  text: string;
+  claimRefs: string[];
+  status: string;
+  simulated: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface OpportunityTaskRecord {
+  id: string;
+  missionId: string;
+  assigneeId: string;
+  title: string;
+  status: string;
+  dependsOn: string[];
+}
+
+export interface OpportunityDetailResponse {
+  opportunity: OpportunityRecord;
+  company: ScoutCompany | null;
+  history: OpportunityHistoryRecord[];
+  companyHistory: { action: string; actor: string; reason?: string; occurredAt: string }[];
+  mission: Mission | null;
+  tasks: OpportunityTaskRecord[];
+  runs: OpportunityRunRecord[];
+  drafts: OpportunityDraftRecord[];
+  approvals: Approval[];
+  validTransitions: string[];
+  maxDirectPriority: string;
+  stageLabels: Record<string, string>;
+}
+
+export interface CostsResponse {
+  usage: { items: {
+    id: string; missionId?: string; agentId: string; provider: string; model: string;
+    simulated: boolean; tokensIn: number; tokensOut: number; costUnits: number;
+    estimatedCost: number | null; billedCost: number | null; tariffVersion: string | null;
+    durationMs: number; status: string; occurredAt: string;
+  }[]; total: number };
+  budget: {
+    daily: { limit: number | null; used: number; remaining: number | null };
+    monthly: { limit: number | null; used: number; remaining: number | null };
+    blocked: boolean; reason?: string;
+  };
+  note: string;
+  simulatedDisclaimer: string;
+}
+
 export const api = {
   health: () => req<{ mode: string; simulated: boolean }>("/health"),
   agents: () => req<AgentState[]>("/agents"),
@@ -119,23 +281,32 @@ export const api = {
     req<{ meta: { total: number }; personas: Persona[]; agents: CatalogAgent[] }>("/catalog"),
   leads: () => req<Lead[]>("/leads"),
   missions: () => req<(Mission & { tasks?: unknown[] })[]>("/missions"),
-  mission: (id: string) => req<Mission & { runs?: { agentId: string; status: string; mock: boolean }[] }>(`/missions/${id}`),
-  approvals: (status = "pending") => req<Approval[]>(`/approvals?status=${status}`),
+  mission: (id: string) => req<Mission & { runs?: OpportunityRunRecord[]; tasks?: OpportunityTaskRecord[] }>(`/missions/${id}`),
+  approvals: (status = "pending", action?: string) => {
+    const params = new URLSearchParams();
+    if (status && status !== "all") params.set("status", status);
+    if (action) params.set("action", action);
+    const qs = params.toString();
+    return req<Approval[]>(`/approvals${qs ? `?${qs}` : ""}`);
+  },
+  requestApproval: (body: { action: string; scope?: string; reason?: string; missionId?: string; preview?: Record<string, unknown> }) =>
+    req<Approval>("/approvals/request", { method: "POST", body: JSON.stringify(body) }),
   decideApproval: (id: string, decision: "approved" | "rejected", reason?: string) =>
-    req<{ approval: Approval; missionStatus: string }>(`/approvals/${id}/decision`, {
+    req<{ approval: Approval; missionStatus?: string; opportunity?: OpportunityRecord }>(`/approvals/${id}/decision`, {
       method: "POST",
       body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
     }),
   events: () => req<EventItem[]>("/events?limit=200"),
   audit: () => req<AuditItem[]>("/audit?limit=200"),
-  drafts: () => req<{ id: string; channel: string; status: string; simulated: boolean; text: string }[]>("/drafts"),
+  drafts: () => req<OpportunityDraftRecord[]>("/drafts"),
   offer: () => req<{ version: string; claims: { id: string; claim: string; status: string }[] }>("/offer"),
   runDemo: () =>
     req<{ correlationId: string; approvalId: string; simulated: boolean }>("/demo/run", {
       method: "POST",
       body: "{}",
     }),
-  demoStatus: () => req<{ pendingApprovals: number; missions: number; leads: number; simulated: boolean }>("/demo/status"),
+  demoStatus: () =>
+    req<{ pendingApprovals: number; missions: number; leads: number; opportunities?: number; companies?: number; simulated: boolean }>("/demo/status"),
   login: (email: string, password: string) =>
     req<{ token: string; user: SessionUser }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => req<{ ok: boolean }>("/auth/logout", { method: "POST", body: "{}" }),
@@ -158,7 +329,7 @@ export const api = {
     return req<{ items: ScoutCompany[]; total: number; page: number; pageSize: number }>(`/scout/companies${qs ? `?${qs}` : ""}`);
   },
   scoutCompany: (id: string) =>
-    req<{ company: ScoutCompany; history: { action: string; actor: string; reason?: string; occurredAt: string }[] }>(`/scout/companies/${id}`),
+    req<{ company: ScoutCompany; history: { action: string; actor: string; reason?: string; occurredAt: string }[]; opportunity: OpportunityRecord | null }>(`/scout/companies/${id}`),
   scoutReview: (id: string, decision: "approved" | "rejected" | "archived", reason?: string) =>
     req<ScoutCompany>(`/scout/companies/${id}/review`, { method: "POST", body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }) }),
   scoutExportUrl: (status = "approved") => `/api/scout/export?reviewStatus=${status}`,
@@ -167,42 +338,67 @@ export const api = {
     return req<CostsResponse>(`/costs${qs ? `?${qs}` : ""}`);
   },
   costsTariffs: () =>
-    req<{ id: string; version: string; provider: string; model: string; inputPer1MTokens: number; outputPer1MTokens: number; active: boolean }[]>("/costs/tariffs"),
+    req<{ id: string; version: string; provider: string; model: string; currency?: string; inputPer1MTokens: number; outputPer1MTokens: number; active: boolean }[]>("/costs/tariffs"),
+  addCostTariff: (body: { version: string; provider: string; model: string; currency?: string; inputPer1MTokens: number; outputPer1MTokens: number; active?: boolean }) =>
+    req<{ id: string; version: string; provider: string; model: string }>("/costs/tariffs", { method: "POST", body: JSON.stringify(body) }),
+
+  // ---- Onda 11: Empresa → Oportunidade & Pipeline Comercial ----
+  promoteCompanyToOpportunity: (companyId: string, body?: { justification?: string; requireApproval?: boolean }) =>
+    req<{
+      opportunity?: OpportunityRecord;
+      created?: boolean;
+      duplicate?: boolean;
+      queuedForApproval?: boolean;
+      approval?: Approval;
+      correlationId: string;
+    }>(`/scout/companies/${companyId}/opportunity`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  opportunities: (f?: Record<string, string>) => {
+    const qs = new URLSearchParams(Object.entries(f ?? {}).filter(([, v]) => v)).toString();
+    return req<OpportunitiesPageResponse>(`/opportunities${qs ? `?${qs}` : ""}`);
+  },
+  opportunity: (id: string) => req<OpportunityDetailResponse>(`/opportunities/${id}`),
+  transitionOpportunity: (
+    id: string,
+    body: { to: string; reason?: string; requireApproval?: boolean; currentAgentId?: string; nextAction?: string },
+  ) =>
+    req<OpportunityRecord & { queuedForApproval?: boolean; approval?: Approval }>(`/opportunities/${id}/transition`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateOpportunityPriority: (id: string, body: { priority: string; reason?: string }) =>
+    req<{
+      opportunity?: OpportunityRecord;
+      queuedForApproval?: boolean;
+      approval?: Approval;
+      rule: { allowedDirect: boolean; maxAllowed: string; reason?: string };
+      correlationId: string;
+    }>(`/opportunities/${id}/priority`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  runOpportunityMission: (id: string, body?: { forceNew?: boolean }) =>
+    req<{
+      correlationId: string;
+      opportunity: OpportunityRecord;
+      mission: Mission;
+      runs: OpportunityRunRecord[];
+      draft: OpportunityDraftRecord;
+      approval: Approval;
+      qualification: {
+        icpScore: number;
+        recommendedPriority: string;
+        evidences: string[];
+        gaps: string[];
+        diagnosis: string;
+        simulated: boolean;
+      };
+      duplicate?: boolean;
+      simulated: boolean;
+    }>(`/opportunities/${id}/mission`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
 };
-
-export interface ScoutCompany {
-  id: string;
-  cnpj: string;
-  razaoSocial: string;
-  nomeFantasia?: string;
-  cnae?: string;
-  porte?: string;
-  situacao?: string;
-  municipio?: string;
-  uf?: string;
-  fonte: string;
-  importadoEm: string;
-  score: number;
-  scoreVersion: string;
-  reasons: string[];
-  gaps: string[];
-  reviewStatus: "pending" | "approved" | "rejected" | "archived";
-  reviewedBy?: string;
-  reviewReason?: string;
-}
-
-export interface CostsResponse {
-  usage: { items: {
-    id: string; missionId?: string; agentId: string; provider: string; model: string;
-    simulated: boolean; tokensIn: number; tokensOut: number; costUnits: number;
-    estimatedCost: number | null; billedCost: number | null; tariffVersion: string | null;
-    durationMs: number; status: string; occurredAt: string;
-  }[]; total: number };
-  budget: {
-    daily: { limit: number | null; used: number; remaining: number | null };
-    monthly: { limit: number | null; used: number; remaining: number | null };
-    blocked: boolean; reason?: string;
-  };
-  note: string;
-  simulatedDisclaimer: string;
-}

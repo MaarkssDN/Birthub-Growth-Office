@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useAsync } from "./hooks";
 import { api, setAuthToken, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
 import { CaptureView, LoginView } from "./views";
-import { OfficeView } from "./office/OfficeView";
+
+// Code-split: o escritório 3D (three.js ~1MB) só carrega ao abrir a aba
+const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ default: m.OfficeView })));
 
 type Tab = "capture" | "dashboard" | "agents" | "leads" | "missions" | "approvals" | "catalog" | "timeline" | "office";
 
@@ -407,7 +409,11 @@ export default function App() {
         {user && tab === "approvals" && <ApprovalsView onDecide={decide} />}
         {user && tab === "catalog" && <CatalogView />}
         {user && tab === "timeline" && <TimelineView />}
-        {user && tab === "office" && <OfficeView />}
+        {user && tab === "office" && (
+          <Suspense fallback={<div className="card muted">Carregando escritório 3D…</div>}>
+            <OfficeView />
+          </Suspense>
+        )}
         <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>
           Birthub Growth Office · Onda 01 · persistência local · nenhum envio externo ·{" "}
           <span className="badge gold">SIMULAÇÃO</span>

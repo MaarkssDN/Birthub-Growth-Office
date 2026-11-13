@@ -205,6 +205,7 @@ export interface AiStatus {
   limits: AiLimits;
   promptsRegistered: number;
   realCallsEnabled: boolean;
+  usage: { callsThisRun: number; costUnitsThisRun: number };
 }
 
 export function aiModeFromEnv(env: NodeJS.ProcessEnv = process.env): AiMode {
@@ -242,6 +243,7 @@ export class AiGateway {
       limits: this.limits,
       promptsRegistered: Object.keys(PROMPTS).length,
       realCallsEnabled: this.mode === "real",
+      usage: { callsThisRun: this.calls, costUnitsThisRun: this.costUnits },
     };
   }
 

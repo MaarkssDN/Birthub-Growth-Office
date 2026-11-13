@@ -797,5 +797,32 @@ export class PrismaStore implements StorePort {
       payload: r.payload as Record<string, unknown>,
     }));
   }
+
+  /** Outbox publisher (G53): eventos persistidos ainda não entregues. */
+  async listUnpublishedEvents(limit = 100) {
+    const rows = await this.prisma.eventOutbox.findMany({
+      where: { workspaceId: this.workspace.id, publishedAt: null },
+      orderBy: { occurredAt: "asc" },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      eventId: r.eventId,
+      eventType: r.eventType,
+      version: r.version,
+      workspaceId: this.workspace.slug,
+      ...(r.missionId ? { missionId: r.missionId } : {}),
+      ...(r.agentId ? { agentId: r.agentId } : {}),
+      occurredAt: iso(r.occurredAt),
+      correlationId: r.correlationId,
+      payload: r.payload as Record<string, unknown>,
+    }));
+  }
+
+  async markEventPublished(eventId: string): Promise<void> {
+    await this.prisma.eventOutbox.updateMany({
+      where: { eventId, publishedAt: null },
+      data: { publishedAt: new Date() },
+    });
+  }
 }
 

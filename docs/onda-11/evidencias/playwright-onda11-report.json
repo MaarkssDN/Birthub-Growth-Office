@@ -1,0 +1,219 @@
+{
+  "executedAt": "2026-11-13T22:26:26.278Z",
+  "totalChecks": 35,
+  "passed": 35,
+  "failed": 0,
+  "pageErrors": [],
+  "results": [
+    {
+      "name": "Desktop 1440x900: Login e Dashboard carregados",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Desktop 1440x900: Login e Dashboard carregados"
+    },
+    {
+      "name": "Central Scout: rejeição de linha CSV com CNPJ inválido",
+      "passed": true,
+      "detail": "Importação: 1 novas, 0 duplicadas, 1 rejeitadas. Persistidas: 0.",
+      "line": "PASS | Central Scout: rejeição de linha CSV com CNPJ inválido — Importação: 1 novas, 0 duplicadas, 1 rejeitadas. Persistidas: 0."
+    },
+    {
+      "name": "Central Scout: importação de CSV válido",
+      "passed": true,
+      "detail": "Importação: 3 novas, 0 duplicadas, 0 rejeitadas. Persistidas: 0.",
+      "line": "PASS | Central Scout: importação de CSV válido — Importação: 3 novas, 0 duplicadas, 0 rejeitadas. Persistidas: 0."
+    },
+    {
+      "name": "Central Scout: deduplicação na reimportação do mesmo CSV",
+      "passed": true,
+      "detail": "Importação: 3 novas, 0 duplicadas, 0 rejeitadas. Persistidas: 0.",
+      "line": "PASS | Central Scout: deduplicação na reimportação do mesmo CSV — Importação: 3 novas, 0 duplicadas, 0 rejeitadas. Persistidas: 0."
+    },
+    {
+      "name": "Central Scout: listagem e paginação exibem empresas",
+      "passed": true,
+      "detail": "4 linhas",
+      "line": "PASS | Central Scout: listagem e paginação exibem empresas — 4 linhas"
+    },
+    {
+      "name": "Central Scout: filtro por UF (SP)",
+      "passed": true,
+      "detail": "3 empresa(s) SP",
+      "line": "PASS | Central Scout: filtro por UF (SP) — 3 empresa(s) SP"
+    },
+    {
+      "name": "Central Scout: abertura de dossiê individual",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Central Scout: abertura de dossiê individual"
+    },
+    {
+      "name": "Central Scout: aprovar e rejeitar empresas",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Central Scout: aprovar e rejeitar empresas"
+    },
+    {
+      "name": "Central Scout: ação 'Criar oportunidade comercial' vinculada ao dossiê",
+      "passed": true,
+      "detail": "Idempotência verificada: oportunidade comercial cmwfj97dh0010vux011tobz5o já existe para esta empresa — nenhuma duplicação criada.",
+      "line": "PASS | Central Scout: ação 'Criar oportunidade comercial' vinculada ao dossiê — Idempotência verificada: oportunidade comercial cmwfj97dh0010vux011tobz5o já existe para esta empresa — nenhuma duplicação criada."
+    },
+    {
+      "name": "Central Scout: repetir 'Criar oportunidade comercial' sem duplicação (idempotente)",
+      "passed": true,
+      "detail": "Idempotência verificada: oportunidade comercial cmwfj97dh0010vux011tobz5o já existe para esta empresa — nenhuma duplicação criada.",
+      "line": "PASS | Central Scout: repetir 'Criar oportunidade comercial' sem duplicação (idempotente) — Idempotência verificada: oportunidade comercial cmwfj97dh0010vux011tobz5o já existe para esta empresa — nenhuma duplicação criada."
+    },
+    {
+      "name": "Pipeline: oportunidade criada visível na listagem",
+      "passed": true,
+      "detail": "2 oportunidade(s)",
+      "line": "PASS | Pipeline: oportunidade criada visível na listagem — 2 oportunidade(s)"
+    },
+    {
+      "name": "Pipeline: orquestração dos 6 agentes (Aegis, Relay, Scout, Meridian, Beacon, Pledge)",
+      "passed": true,
+      "detail": "6 runs + rascunho Beacon",
+      "line": "PASS | Pipeline: orquestração dos 6 agentes (Aegis, Relay, Scout, Meridian, Beacon, Pledge) — 6 runs + rascunho Beacon"
+    },
+    {
+      "name": "Pipeline: mudança de estágio e histórico auditável",
+      "passed": true,
+      "detail": "21 entradas no histórico",
+      "line": "PASS | Pipeline: mudança de estágio e histórico auditável — 21 entradas no histórico"
+    },
+    {
+      "name": "Pipeline: verificação de controle de acesso na rota de oportunidade",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Pipeline: verificação de controle de acesso na rota de oportunidade"
+    },
+    {
+      "name": "Central de Aprovações: ações pendentes visíveis",
+      "passed": true,
+      "detail": "7 pendente(s)",
+      "line": "PASS | Central de Aprovações: ações pendentes visíveis — 7 pendente(s)"
+    },
+    {
+      "name": "Central de Aprovações: decisão humana registrada sem envio externo",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Central de Aprovações: decisão humana registrada sem envio externo"
+    },
+    {
+      "name": "Custos IA: histórico, diferenciação REAL vs SIMULADO e limites de orçamento",
+      "passed": true,
+      "detail": "4 registro(s) de uso",
+      "line": "PASS | Custos IA: histórico, diferenciação REAL vs SIMULADO e limites de orçamento — 4 registro(s) de uso"
+    },
+    {
+      "name": "Custos IA: exibição e cadastro de tarifas versionadas",
+      "passed": true,
+      "detail": "1 tarifa(s)",
+      "line": "PASS | Custos IA: exibição e cadastro de tarifas versionadas — 1 tarifa(s)"
+    },
+    {
+      "name": "Custos IA: filtro por agente (meridian)",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Custos IA: filtro por agente (meridian)"
+    },
+    {
+      "name": "Custos IA: estado vazio exibido quando filtro não retorna registros",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Custos IA: estado vazio exibido quando filtro não retorna registros"
+    },
+    {
+      "name": "Custos IA: tratamento visual de erro e indisponibilidade",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Custos IA: tratamento visual de erro e indisponibilidade"
+    },
+    {
+      "name": "Escritório 3D: Seleção do Scout e exibição do dossiê",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Seleção do Scout e exibição do dossiê"
+    },
+    {
+      "name": "Escritório 3D: Missão do Aegis",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Missão do Aegis"
+    },
+    {
+      "name": "Escritório 3D: Coordenação do Relay",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Coordenação do Relay"
+    },
+    {
+      "name": "Escritório 3D: Atividade do Meridian",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Atividade do Meridian"
+    },
+    {
+      "name": "Escritório 3D: Rascunho do Beacon",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Rascunho do Beacon"
+    },
+    {
+      "name": "Escritório 3D: Acompanhamento do Pledge",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: Acompanhamento do Pledge"
+    },
+    {
+      "name": "Escritório 3D: estados reais de execução via SSE/eventos",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Escritório 3D: estados reais de execução via SSE/eventos"
+    },
+    {
+      "name": "Segurança/RBAC: permissões negadas (403) para auditor em criação de oportunidade, transição e tarifas",
+      "passed": true,
+      "detail": "status codes: 403, 403, 403",
+      "line": "PASS | Segurança/RBAC: permissões negadas (403) para auditor em criação de oportunidade, transição e tarifas — status codes: 403, 403, 403"
+    },
+    {
+      "name": "Mobile 390x844 (Scout): renderização legível e sem overflow horizontal",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Mobile 390x844 (Scout): renderização legível e sem overflow horizontal"
+    },
+    {
+      "name": "Mobile 390x844 (Pipeline): renderização legível e sem overflow horizontal",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Mobile 390x844 (Pipeline): renderização legível e sem overflow horizontal"
+    },
+    {
+      "name": "Mobile 390x844 (Aprovações): renderização legível e sem overflow horizontal",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Mobile 390x844 (Aprovações): renderização legível e sem overflow horizontal"
+    },
+    {
+      "name": "Mobile 390x844 (Custos IA): renderização legível e sem overflow horizontal",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Mobile 390x844 (Custos IA): renderização legível e sem overflow horizontal"
+    },
+    {
+      "name": "Mobile 390x844 (Escritório): renderização legível e sem overflow horizontal",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Mobile 390x844 (Escritório): renderização legível e sem overflow horizontal"
+    },
+    {
+      "name": "Zero erros de runtime (pageerror) em Desktop e Mobile",
+      "passed": true,
+      "detail": "",
+      "line": "PASS | Zero erros de runtime (pageerror) em Desktop e Mobile"
+    }
+  ]
+}

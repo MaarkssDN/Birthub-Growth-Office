@@ -22,8 +22,10 @@ import {
   ICP_HYPOTHESIS,
   approvedClaimIds,
   type StorePort,
+  OutboxPublisher,
+  type OutboxEvent,
 } from "@bgo/commercial";
-import { eventBus, recordAudit, snapshot as metricsSnapshot } from "@bgo/observability";
+import { eventBus, recordAudit, snapshot as metricsSnapshot, incr } from "@bgo/observability";
 import { aiGateway, meridianDiagnose } from "@bgo/ai";
 import { deriveVisualState } from "@bgo/ui";
 
@@ -509,50 +511,35 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     };
   });
 
-  // ---- Outbox publisher (G53): drena eventos persistidos não publicados
-  // de volta ao barramento em memória (SSE) e marca publishedAt. Garante
-  // entrega pelo menos uma vez; consumidores devem deduplicar por eventId.
+  // ---- Outbox publisher (G53/G71): OutboxPublisher drena eventos
+  // persistidos não publicados ao eventBus (SSE) com retry+backoff,
+  // baseline sem replay e métricas. At-least-once; consumidores
+  // deduplicam por eventId.
   const outboxStore = store as StorePort & {
-    listUnpublishedEvents?: (limit?: number) => Promise<Array<{
-      eventId: string; eventType: string; version: number; workspaceId: string;
-      correlationId: string; occurredAt: string; payload: Record<string, unknown>;
-      missionId?: string; agentId?: string;
-    }>>;
+    listUnpublishedEvents?: (limit?: number) => Promise<OutboxEvent[]>;
     markEventPublished?: (eventId: string) => Promise<void>;
   };
   if (typeof outboxStore.listUnpublishedEvents === "function" && typeof outboxStore.markEventPublished === "function") {
-    // Baseline: eventos históricos já foram entregues ao vivo via eventBus
-    // antes desta feature existir — marca como publicados SEM reemitir,
-    // evitando replay de todo o histórico no SSE a cada restart.
-    const baseline = async () => {
-      try {
-        const old = await outboxStore.listUnpublishedEvents!(10000);
-        for (const ev of old) await outboxStore.markEventPublished!(ev.eventId);
-      } catch { /* na próxima batida tenta de novo */ }
-    };
-    const drain = async () => {
-      try {
-        const pending = await outboxStore.listUnpublishedEvents!(100);
-        for (const ev of pending) {
-          eventBus.publish({
-            eventType: ev.eventType as Parameters<typeof eventBus.publish>[0]["eventType"],
-            workspaceId: ev.workspaceId,
-            correlationId: ev.correlationId,
-            occurredAt: ev.occurredAt,
-            payload: ev.payload,
-            ...(ev.missionId !== undefined ? { missionId: ev.missionId } : {}),
-            ...(ev.agentId !== undefined ? { agentId: ev.agentId } : {}),
-          });
-          await outboxStore.markEventPublished!(ev.eventId);
-        }
-      } catch {
-        // publisher nunca derruba a API; próxima batida tenta de novo
-      }
-    };
-    void baseline().then(() => drain());
-    const timer = setInterval(() => void drain(), 5000);
-    timer.unref();
-    app.addHook("onClose", async () => clearInterval(timer));
+    const publisher = new OutboxPublisher(
+      {
+        listUnpublishedEvents: (l) => outboxStore.listUnpublishedEvents!(l),
+        markEventPublished: (id) => outboxStore.markEventPublished!(id),
+      },
+      (ev) => {
+        eventBus.publish({
+          eventType: ev.eventType as Parameters<typeof eventBus.publish>[0]["eventType"],
+          workspaceId: ev.workspaceId,
+          correlationId: ev.correlationId,
+          occurredAt: ev.occurredAt,
+          payload: ev.payload,
+          ...(ev.missionId !== undefined ? { missionId: ev.missionId } : {}),
+          ...(ev.agentId !== undefined ? { agentId: ev.agentId } : {}),
+        });
+      },
+      { onMetric: (name) => { if (name !== "drain") incr(`outbox.${name}`, 1); } },
+    );
+    publisher.start();
+    app.addHook("onClose", async () => { await publisher.stop(); });
   }
 
   return app;

@@ -205,7 +205,10 @@ export interface AiStatus {
   limits: AiLimits;
   promptsRegistered: number;
   realCallsEnabled: boolean;
-  usage: { callsThisRun: number; costUnitsThisRun: number };
+  usage: {
+    callsThisRun: number; costUnitsThisRun: number;
+    totalCalls: number; totalCostUnits: number; totalTokens: number; lastDurationMs: number;
+  };
 }
 
 export function aiModeFromEnv(env: NodeJS.ProcessEnv = process.env): AiMode {
@@ -220,6 +223,10 @@ export class AiGateway {
   private limits: AiLimits;
   private calls = 0;
   private costUnits = 0;
+  private totalCalls = 0;
+  private totalCostUnits = 0;
+  private totalTokens = 0;
+  private lastDurationMs = 0;
 
   constructor(env: NodeJS.ProcessEnv = process.env, limits: Partial<AiLimits> = {}) {
     this.mode = aiModeFromEnv(env);
@@ -243,7 +250,14 @@ export class AiGateway {
       limits: this.limits,
       promptsRegistered: Object.keys(PROMPTS).length,
       realCallsEnabled: this.mode === "real",
-      usage: { callsThisRun: this.calls, costUnitsThisRun: this.costUnits },
+      usage: {
+        callsThisRun: this.calls,
+        costUnitsThisRun: this.costUnits,
+        totalCalls: this.totalCalls,
+        totalCostUnits: this.totalCostUnits,
+        totalTokens: this.totalTokens,
+        lastDurationMs: this.lastDurationMs,
+      },
     };
   }
 
@@ -261,7 +275,12 @@ export class AiGateway {
       return { ...base, ok: false, provider: this.provider.name, model: "n/a", error: `limite de ${this.limits.maxCallsPerRun} chamadas/run atingido` };
     }
     this.calls += 1;
+    const t0 = Date.now();
     const r = await this.provider.complete(req);
+    this.lastDurationMs = Date.now() - t0;
+    this.totalCalls += 1;
+    this.totalCostUnits += r.costUnits ?? 0;
+    this.totalTokens += (r.tokensIn ?? 0) + (r.tokensOut ?? 0);
     this.costUnits += r.costUnits ?? 0;
     if (this.costUnits > this.limits.maxCostUnitsPerRun) {
       return { ...base, ok: false, provider: r.provider, model: r.model, error: `limite de custo ${this.limits.maxCostUnitsPerRun} units/run excedido` };

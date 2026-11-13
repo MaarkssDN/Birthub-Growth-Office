@@ -16,5 +16,21 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/three/")) return "three-core";
+          if (
+            id.includes("node_modules/@react-three/") ||
+            id.includes("node_modules/three-stdlib/") ||
+            id.includes("node_modules/maath/") ||
+            id.includes("node_modules/meshline/")
+          ) {
+            return "three-ecosystem";
+          }
+          return undefined;
+        },
+      },
+    },
   },
 });

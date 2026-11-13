@@ -16,7 +16,9 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "vitest run",
     "test:packages": "pnpm -r run test",
-    "build": "pnpm -r run build",
+    "build": "pnpm --workspace-concurrency=2 -r run build",
+    "db:generate": "node --env-file-if-exists=.env scripts/prisma-safe-generate.mjs",
+    "db:migrate": "node --env-file-if-exists=.env scripts/prisma-safe-generate.mjs --deploy",
     "db:up": "docker compose -f infra/compose/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/compose/docker-compose.yml down"
   },

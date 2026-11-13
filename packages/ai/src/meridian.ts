@@ -17,6 +17,8 @@ import type { AiGateway, CompletionResult } from "./index";
 
 export interface LeadDiagnosisInput {
   leadId?: string;
+  missionId?: string;
+  correlationId?: string;
   name?: string;
   company?: string;
   interest?: string;
@@ -93,6 +95,8 @@ export async function meridianDiagnose(
       approvedClaims,
     },
     maxTokens: 800,
+    ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
+    ...(input.correlationId !== undefined ? { correlationId: input.correlationId } : {}),
   });
 
   const base: CommercialDiagnosis = {

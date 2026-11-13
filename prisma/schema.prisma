@@ -282,3 +282,111 @@ model AuditEvent {
   outcome        String   // allowed|denied|info
   createdAt      DateTime @default(now())
 }
+
+// ---------- Onda 10: Central Scout + Custos de IA ----------
+
+model ImportBatch {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  fonte         String    // origem declarada pelo operador (obrigatória)
+  filename      String?
+  missionId     String?
+  correlationId String
+  totalRows     Int       @default(0)
+  imported      Int       @default(0)
+  duplicates    Int       @default(0)
+  rejected      Int       @default(0)
+  rejectedDetail Json?
+  importedBy    String
+  createdAt     DateTime  @default(now())
+  companies     Company[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  batchId       String?
+  batch         ImportBatch? @relation(fields: [batchId], references: [id])
+  cnpj          String   // 14 dígitos normalizados
+  razaoSocial   String
+  nomeFantasia  String?
+  cnae          String?
+  porte         String?
+  situacao      String?
+  municipio     String?
+  uf            String?
+  fonte         String
+  importadoEm   DateTime
+  score         Int      @default(0)      // 0-100, heurística ICP — não é diagnóstico de IA
+  scoreVersion  String   @default("score-icp-v1")
+  reasons       Json     @default("[]")
+  gaps          Json     @default("[]")
+  reviewStatus  String   @default("pending") // pending|approved|rejected|archived
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  reviewReason  String?
+  missionId     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  history       CompanyHistory[]
+
+  @@unique([workspaceId, cnpj])
+  @@index([workspaceId, reviewStatus])
+  @@index([workspaceId, uf])
+}
+
+model CompanyHistory {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  action     String   // imported|review_approved|review_rejected|review_archived|reimport_seen
+  actor      String
+  reason     String?
+  details    Json?
+  occurredAt DateTime @default(now())
+
+  @@index([companyId, occurredAt])
+}
+
+model AiTariff {
+  id               String   @id @default(cuid())
+  version          String   // ex.: tariff-v1
+  provider         String
+  model            String
+  currency         String   @default("USD")
+  inputPer1MTokens Decimal
+  outputPer1MTokens Decimal
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@unique([version, provider, model])
+}
+
+model AiUsageRecord {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  missionId      String?
+  agentId        String
+  provider       String
+  model          String
+  promptKey      String?
+  promptVersion  String?
+  simulated      Boolean  @default(false)
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  costUnits      Int      @default(0)
+  estimatedCost  Decimal? // null quando não há tarifa ativa — nunca apresentar como faturado
+  billedCost     Decimal? // somente quando informado pelo provedor
+  tariffVersion  String?
+  durationMs     Int      @default(0)
+  status         String   // success|failure|blocked
+  error          String?
+  correlationId  String?
+  occurredAt     DateTime @default(now())
+
+  @@index([workspaceId, occurredAt])
+  @@index([missionId])
+  @@index([agentId])
+}

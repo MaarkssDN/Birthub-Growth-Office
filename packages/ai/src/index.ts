@@ -18,6 +18,27 @@ export interface CompletionRequest {
   promptVersion: string;
   input: Record<string, unknown>;
   maxTokens?: number;
+  /** Onda 10 — correlação p/ ledger de custos por missão. */
+  missionId?: string;
+  correlationId?: string;
+}
+
+/** Registro de consumo emitido pelo gateway ao ledger (Onda 10). */
+export interface AiUsageSinkRecord {
+  missionId?: string;
+  agentId: string;
+  provider: string;
+  model: string;
+  promptKey?: string;
+  promptVersion?: string;
+  simulated: boolean;
+  tokensIn: number;
+  tokensOut: number;
+  costUnits: number;
+  durationMs: number;
+  status: "success" | "failure" | "blocked";
+  error?: string;
+  correlationId?: string;
 }
 
 export interface CompletionResult {
@@ -227,6 +248,8 @@ export class AiGateway {
   private totalCostUnits = 0;
   private totalTokens = 0;
   private lastDurationMs = 0;
+  /** Sink de persistência de custos (Onda 10). Fire-and-forget; nunca quebra a inferência. */
+  usageSink?: (rec: AiUsageSinkRecord) => void;
 
   constructor(env: NodeJS.ProcessEnv = process.env, limits: Partial<AiLimits> = {}) {
     this.mode = aiModeFromEnv(env);
@@ -283,9 +306,37 @@ export class AiGateway {
     this.totalTokens += (r.tokensIn ?? 0) + (r.tokensOut ?? 0);
     this.costUnits += r.costUnits ?? 0;
     if (this.costUnits > this.limits.maxCostUnitsPerRun) {
-      return { ...base, ok: false, provider: r.provider, model: r.model, error: `limite de custo ${this.limits.maxCostUnitsPerRun} units/run excedido` };
+      const blocked: CompletionResult = { ...base, ok: false, provider: r.provider, model: r.model, error: `limite de custo ${this.limits.maxCostUnitsPerRun} units/run excedido` };
+      this.emitUsage(req, blocked, Date.now() - t0);
+      return blocked;
     }
-    return { ...base, ...r };
+    const result: CompletionResult = { ...base, ...r };
+    this.emitUsage(req, result, Date.now() - t0);
+    return result;
+  }
+
+  private emitUsage(req: CompletionRequest, res: CompletionResult, durationMs: number): void {
+    if (!this.usageSink) return;
+    try {
+      this.usageSink({
+        ...(req.missionId !== undefined ? { missionId: req.missionId } : {}),
+        agentId: req.agentId,
+        provider: res.provider,
+        model: res.model,
+        promptKey: req.promptKey,
+        promptVersion: res.promptVersion,
+        simulated: res.simulated,
+        tokensIn: res.tokensIn ?? 0,
+        tokensOut: res.tokensOut ?? 0,
+        costUnits: res.costUnits ?? 0,
+        durationMs,
+        status: res.ok ? "success" : "failure",
+        ...(res.error !== undefined ? { error: res.error } : {}),
+        ...(req.correlationId !== undefined ? { correlationId: req.correlationId } : {}),
+      });
+    } catch {
+      // sink nunca derruba inferência
+    }
   }
 
   resetRunCounters(): void {

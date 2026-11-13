@@ -19,6 +19,8 @@ export const EventType = z.enum([
   "approval.decided.v1",
   "audit.denied.v1",
   "audit.recorded.v1",
+  "scout.import.completed.v1",
+  "scout.company.reviewed.v1",
 ]);
 export type EventType = z.infer<typeof EventType>;
 
@@ -125,6 +127,18 @@ export const EventPayloads = {
     action: z.string(),
     entity: z.string(),
     outcome: z.string(),
+  }),
+  "scout.import.completed.v1": z.object({
+    batchId: z.string().optional(),
+    imported: z.number().int().nonnegative(),
+    duplicates: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+  }),
+  "scout.company.reviewed.v1": z.object({
+    companyId: z.string(),
+    cnpj: z.string(),
+    decision: z.string(),
+    score: z.number(),
   }),
 } as const;
 

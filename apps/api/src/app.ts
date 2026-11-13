@@ -21,6 +21,7 @@ import {
   OFFER_CLAIMS,
   ICP_HYPOTHESIS,
   approvedClaimIds,
+  importCompaniesCsv,
   type StorePort,
   OutboxPublisher,
   type OutboxEvent,
@@ -482,6 +483,22 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       promptVersion: result.promptVersion, rejectedReason: result.rejectedReason ?? null,
     });
     return { ...result, correlationId, simulated: true };
+  });
+
+  // ---- Scout: importação CSV autorizada de empresas (Onda 09/G92-G94) ----
+  app.post("/api/scout/import", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const csv = typeof body.csv === "string" ? body.csv : "";
+    if (csv.length > 2_000_000) return reply.code(413).send({ error: "CSV excede 2MB" });
+    const fonte = typeof body.fonte === "string" && body.fonte.trim() ? body.fonte.trim().slice(0, 120) : "csv-upload";
+    const correlationId = randomUUID();
+    const result = importCompaniesCsv(csv, { fonte });
+    await audit(actor.id, "scout.import", "CompanyImport", fonte, correlationId,
+      result.rejected.length === 0 || result.imported > 0 ? "allowed" : "denied",
+      { imported: result.imported, duplicates: result.duplicates, rejected: result.rejected.length });
+    return { ...result, correlationId, simulated: false, note: "dossiês = aderência heurística à ICP, não evidência de intenção de compra" };
   });
 
   app.post("/api/policy/evaluate", async (req) => {

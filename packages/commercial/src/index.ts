@@ -9,3 +9,4 @@ export * from "./auth";
 export * from "./capture";
 export * from "./orchestrator";
 export * from "./outbox-publisher";
+export * from "./scout-import";

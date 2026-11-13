@@ -198,6 +198,8 @@ export class Store implements StorePort {
     goal: string;
     requester: string;
     leadId?: string;
+    companyId?: string;
+    opportunityId?: string;
     correlationId: string;
     createdBy: string;
   }): Promise<Mission> {
@@ -206,6 +208,8 @@ export class Store implements StorePort {
       id: randomUUID(),
       workspaceId: this.workspace.id,
       ...(input.leadId !== undefined ? { leadId: input.leadId } : {}),
+      ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+      ...(input.opportunityId !== undefined ? { opportunityId: input.opportunityId } : {}),
       requester: input.requester,
       goal: input.goal,
       status: "draft",
@@ -293,6 +297,8 @@ export class Store implements StorePort {
     agentId: string;
     correlationId: string;
     provider?: string;
+    mock?: boolean;
+    input?: Record<string, unknown>;
   }): Promise<ExecutionRun> {
     const now = new Date().toISOString();
     const run: ExecutionRun = {
@@ -300,9 +306,11 @@ export class Store implements StorePort {
       missionId: input.missionId,
       agentId: input.agentId,
       provider: input.provider ?? "mock",
-      mock: true,
+      mock: input.mock ?? true,
       status: "queued",
       costUnits: 0,
+      durationMs: 0,
+      ...(input.input !== undefined ? { input: input.input } : {}),
       correlationId: input.correlationId,
       createdAt: now,
       updatedAt: now,
@@ -320,7 +328,12 @@ export class Store implements StorePort {
     return missionId ? all.filter((r) => r.missionId === missionId) : all;
   }
 
-  async setRunStatus(id: string, status: ExecutionRun["status"], error?: string): Promise<ExecutionRun> {
+  async setRunStatus(
+    id: string,
+    status: ExecutionRun["status"],
+    error?: string,
+    meta?: { durationMs?: number; costUnits?: number; output?: Record<string, unknown> },
+  ): Promise<ExecutionRun> {
     const r = this.runs.get(id);
     if (!r) throw new Error(`run não encontrada: ${id}`);
     const updated: ExecutionRun = {
@@ -328,6 +341,9 @@ export class Store implements StorePort {
       status,
       updatedAt: new Date().toISOString(),
       ...(error !== undefined ? { error } : {}),
+      ...(meta?.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
+      ...(meta?.costUnits !== undefined ? { costUnits: meta.costUnits } : {}),
+      ...(meta?.output !== undefined ? { output: meta.output } : {}),
     };
     this.runs.set(id, updated);
     return updated;
@@ -431,6 +447,8 @@ export class Store implements StorePort {
   async createDraft(input: {
     missionId?: string;
     leadId?: string;
+    companyId?: string;
+    opportunityId?: string;
     channel: Channel;
     recipientPolicy: string;
     template?: string;
@@ -443,6 +461,8 @@ export class Store implements StorePort {
       id: randomUUID(),
       ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
       ...(input.leadId !== undefined ? { leadId: input.leadId } : {}),
+      ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+      ...(input.opportunityId !== undefined ? { opportunityId: input.opportunityId } : {}),
       channel: input.channel,
       recipientPolicy: input.recipientPolicy,
       ...(input.template !== undefined ? { template: input.template } : {}),

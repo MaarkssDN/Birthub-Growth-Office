@@ -320,13 +320,15 @@ export class PrismaStore implements StorePort {
 
   // ---------- missions & tasks ----------
   private toMission(m: {
-    id: string; workspaceId: string; leadId: string | null; requester: string; goal: string;
-    status: string; correlationId: string; createdBy: string; createdAt: Date; updatedAt: Date;
+    id: string; workspaceId: string; leadId: string | null; companyId: string | null; opportunityId: string | null;
+    requester: string; goal: string; status: string; correlationId: string; createdBy: string; createdAt: Date; updatedAt: Date;
   }): Mission {
     return {
       id: m.id,
       workspaceId: m.workspaceId,
       ...(m.leadId ? { leadId: m.leadId } : {}),
+      ...(m.companyId ? { companyId: m.companyId } : {}),
+      ...(m.opportunityId ? { opportunityId: m.opportunityId } : {}),
       requester: m.requester,
       goal: m.goal,
       status: m.status as Mission["status"],
@@ -338,12 +340,14 @@ export class PrismaStore implements StorePort {
   }
 
   async createMission(input: {
-    goal: string; requester: string; leadId?: string; correlationId: string; createdBy: string;
+    goal: string; requester: string; leadId?: string; companyId?: string; opportunityId?: string; correlationId: string; createdBy: string;
   }): Promise<Mission> {
     const m = await this.prisma.mission.create({
       data: {
         workspaceId: this.workspace.id,
         ...(input.leadId !== undefined ? { leadId: input.leadId } : {}),
+        ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+        ...(input.opportunityId !== undefined ? { opportunityId: input.opportunityId } : {}),
         requester: input.requester,
         goal: input.goal,
         status: "draft",
@@ -446,8 +450,8 @@ export class PrismaStore implements StorePort {
   // ---------- runs & steps ----------
   private toRun(r: {
     id: string; missionId: string; agentId: string; provider: string; mock: boolean;
-    status: string; costUnits: number; correlationId: string; error: string | null;
-    createdAt: Date; updatedAt: Date;
+    status: string; costUnits: number; durationMs: number; input: unknown; output: unknown;
+    correlationId: string; error: string | null; createdAt: Date; updatedAt: Date;
   }): ExecutionRun {
     return {
       id: r.id,
@@ -457,6 +461,9 @@ export class PrismaStore implements StorePort {
       mock: r.mock,
       status: r.status as ExecutionRun["status"],
       costUnits: r.costUnits,
+      durationMs: r.durationMs,
+      ...(r.input ? { input: j<Record<string, unknown>>(r.input) } : {}),
+      ...(r.output ? { output: j<Record<string, unknown>>(r.output) } : {}),
       correlationId: r.correlationId,
       ...(r.error ? { error: r.error } : {}),
       createdAt: iso(r.createdAt),
@@ -465,7 +472,7 @@ export class PrismaStore implements StorePort {
   }
 
   async createRun(input: {
-    missionId: string; agentId: string; correlationId: string; provider?: string;
+    missionId: string; agentId: string; correlationId: string; provider?: string; mock?: boolean; input?: Record<string, unknown>;
   }): Promise<ExecutionRun> {
     const r = await this.prisma.executionRun.create({
       data: {
@@ -474,8 +481,9 @@ export class PrismaStore implements StorePort {
         agentId: input.agentId,
         correlationId: input.correlationId,
         provider: input.provider ?? "mock",
-        mock: true,
+        mock: input.mock ?? true,
         status: "queued",
+        ...(input.input !== undefined ? { input: asJson(input.input) } : {}),
       },
     });
     return this.toRun(r);
@@ -494,10 +502,21 @@ export class PrismaStore implements StorePort {
     return rows.map((r) => this.toRun(r));
   }
 
-  async setRunStatus(id: string, status: ExecutionRun["status"], error?: string): Promise<ExecutionRun> {
+  async setRunStatus(
+    id: string,
+    status: ExecutionRun["status"],
+    error?: string,
+    meta?: { durationMs?: number; costUnits?: number; output?: Record<string, unknown> },
+  ): Promise<ExecutionRun> {
     const r = await this.prisma.executionRun.update({
       where: { id },
-      data: { status, ...(error !== undefined ? { error } : {}) },
+      data: {
+        status,
+        ...(error !== undefined ? { error } : {}),
+        ...(meta?.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
+        ...(meta?.costUnits !== undefined ? { costUnits: meta.costUnits } : {}),
+        ...(meta?.output !== undefined ? { output: asJson(meta.output) } : {}),
+      },
     });
     return this.toRun(r);
   }
@@ -636,13 +655,16 @@ export class PrismaStore implements StorePort {
 
   // ---------- drafts ----------
   private toDraft(d: {
-    id: string; missionId: string | null; channel: string; recipientPolicy: string;
+    id: string; missionId: string | null; companyId: string | null; opportunityId: string | null;
+    channel: string; recipientPolicy: string;
     template: string | null; claimRefs: string[]; text: string; status: string;
     simulated: boolean; createdBy: string; createdAt: Date; updatedAt: Date;
   }): CommercialDraft {
     return {
       id: d.id,
       ...(d.missionId ? { missionId: d.missionId } : {}),
+      ...(d.companyId ? { companyId: d.companyId } : {}),
+      ...(d.opportunityId ? { opportunityId: d.opportunityId } : {}),
       channel: d.channel as Channel,
       recipientPolicy: d.recipientPolicy,
       ...(d.template ? { template: d.template } : {}),
@@ -657,13 +679,16 @@ export class PrismaStore implements StorePort {
   }
 
   async createDraft(input: {
-    missionId?: string; leadId?: string; channel: Channel; recipientPolicy: string;
+    missionId?: string; leadId?: string; companyId?: string; opportunityId?: string;
+    channel: Channel; recipientPolicy: string;
     template?: string; claimRefs: string[]; text: string; createdBy: string;
   }): Promise<CommercialDraft> {
     const d = await this.prisma.commercialDraft.create({
       data: {
         workspaceId: this.workspace.id,
         ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
+        ...(input.companyId !== undefined ? { companyId: input.companyId } : {}),
+        ...(input.opportunityId !== undefined ? { opportunityId: input.opportunityId } : {}),
         channel: input.channel,
         recipientPolicy: input.recipientPolicy,
         ...(input.template !== undefined ? { template: input.template } : {}),

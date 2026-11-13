@@ -101,6 +101,7 @@ export interface CompanyStorePort {
   reviewCompany(id: string, decision: CompanyReviewDecision, actor: string, reason?: string): Promise<StoredCompany>;
   listImportBatches(limit?: number): Promise<ImportBatchRecord[]>;
   companyHistory(companyId: string): Promise<CompanyHistoryRecord[]>;
+  recordHistory?(companyId: string, action: string, actor: string, reason?: string, details?: Record<string, unknown>): Promise<void>;
 }
 
 let seq = 0;
@@ -218,6 +219,10 @@ export class MemoryCompanyStore implements CompanyStorePort {
 
   async companyHistory(companyId: string): Promise<CompanyHistoryRecord[]> {
     return this.history.get(companyId) ?? [];
+  }
+
+  async recordHistory(companyId: string, action: string, actor: string, reason?: string, details: Record<string, unknown> = {}): Promise<void> {
+    this.addHistory(companyId, action, actor, reason, details);
   }
 
   private addHistory(companyId: string, action: string, actor: string, reason: string | undefined, details: Record<string, unknown>): void {

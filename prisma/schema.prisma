@@ -1,7 +1,4 @@
-// Birthub Growth Office — schema Prisma ALVO (Onda 00)
-// STATUS: NÃO MIGRADO. Docker indisponível no ambiente de execução.
-// O adapter vigente é in-memory (packages/commercial/src/store.ts).
-// Promover para Prisma somente após `infra/compose` seguro + ADR de execução.
+// Birthub Growth Office — schema Prisma (Ondas 00-11)
 
 generator client {
   provider = "prisma-client-js"
@@ -107,33 +104,68 @@ model ChannelPermission {
 model Opportunity {
   id             String   @id @default(cuid())
   workspaceId    String
-  leadId         String
-  lead           Lead     @relation(fields: [leadId], references: [id])
-  stage          String   @default("new")
+  leadId         String?
+  lead           Lead?    @relation(fields: [leadId], references: [id])
+  companyId      String?
+  company        Company? @relation(fields: [companyId], references: [id])
+  missionId      String?
+  stage          String   @default("approved_target")
+  priority       String   @default("normal")
+  icpScore       Int      @default(0)
+  currentAgentId String?
   nextAction     String?
+  justification  String   @default("")
+  source         String   @default("scout")
+  approvedBy     String   @default("system")
+  approvedAt     DateTime @default(now())
+  correlationId  String   @default("")
+  lostReason     String?
   lastActivityAt DateTime @default(now())
   ownerId        String?
-  amount         Decimal? // sempre null na W00
+  amount         Decimal? // sempre null na W00-W11
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  history        OpportunityHistory[]
+
+  @@unique([workspaceId, companyId])
+  @@index([workspaceId, stage])
+  @@index([workspaceId, currentAgentId])
+}
+
+model OpportunityHistory {
+  id            String      @id @default(cuid())
+  opportunityId String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id])
+  fromStage     String?
+  toStage       String?
+  action        String
+  actor         String
+  reason        String?
+  details       Json?
+  correlationId String
+  occurredAt    DateTime    @default(now())
+
+  @@index([opportunityId, occurredAt])
 }
 
 model Mission {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  workspace    Workspace @relation(fields: [workspaceId], references: [id])
-  leadId       String?
-  lead         Lead?    @relation(fields: [leadId], references: [id])
-  requester    String
-  goal         String
-  status       String   @default("draft")
-  correlationId String  @unique
-  createdBy    String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  tasks        Task[]
-  runs         ExecutionRun[]
-  approvals    ApprovalRequest[]
+  id            String   @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  leadId        String?
+  lead          Lead?    @relation(fields: [leadId], references: [id])
+  companyId     String?
+  opportunityId String?
+  requester     String
+  goal          String
+  status        String   @default("draft")
+  correlationId String   @unique
+  createdBy     String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tasks         Task[]
+  runs          ExecutionRun[]
+  approvals     ApprovalRequest[]
 }
 
 model Task {
@@ -180,6 +212,9 @@ model ExecutionRun {
   mock          Boolean  @default(true)
   status        String   @default("queued")
   costUnits     Int      @default(0)
+  durationMs    Int      @default(0)
+  input         Json?
+  output        Json?
   correlationId String
   error         String?
   createdAt     DateTime @default(now())
@@ -225,6 +260,8 @@ model CommercialDraft {
   id              String   @id @default(cuid())
   workspaceId     String
   missionId       String?
+  companyId       String?
+  opportunityId   String?
   channel         String   // email|whatsapp|internal_note
   recipientPolicy String   // synthetic_only | opt_in_required | blocked
   template        String?
@@ -331,6 +368,7 @@ model Company {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   history       CompanyHistory[]
+  opportunities Opportunity[]
 
   @@unique([workspaceId, cnpj])
   @@index([workspaceId, reviewStatus])
@@ -341,7 +379,7 @@ model CompanyHistory {
   id         String   @id @default(cuid())
   companyId  String
   company    Company  @relation(fields: [companyId], references: [id])
-  action     String   // imported|review_approved|review_rejected|review_archived|reimport_seen
+  action     String   // imported|review_approved|review_rejected|review_archived|reimport_seen|opportunity_created
   actor      String
   reason     String?
   details    Json?

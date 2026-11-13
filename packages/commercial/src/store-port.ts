@@ -95,6 +95,8 @@ export interface StorePort {
     goal: string;
     requester: string;
     leadId?: string;
+    companyId?: string;
+    opportunityId?: string;
     correlationId: string;
     createdBy: string;
   }): Promise<Mission>;
@@ -120,10 +122,17 @@ export interface StorePort {
     agentId: string;
     correlationId: string;
     provider?: string;
+    mock?: boolean;
+    input?: Record<string, unknown>;
   }): Promise<ExecutionRun>;
   getRun(id: string): Promise<ExecutionRun | undefined>;
   listRuns(missionId?: string): Promise<ExecutionRun[]>;
-  setRunStatus(id: string, status: ExecutionRun["status"], error?: string): Promise<ExecutionRun>;
+  setRunStatus(
+    id: string,
+    status: ExecutionRun["status"],
+    error?: string,
+    meta?: { durationMs?: number; costUnits?: number; output?: Record<string, unknown> },
+  ): Promise<ExecutionRun>;
   addStep(input: {
     runId: string;
     tool: string;
@@ -159,6 +168,8 @@ export interface StorePort {
   createDraft(input: {
     missionId?: string;
     leadId?: string;
+    companyId?: string;
+    opportunityId?: string;
     channel: Channel;
     recipientPolicy: string;
     template?: string;

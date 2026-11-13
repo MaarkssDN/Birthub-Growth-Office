@@ -7,11 +7,14 @@ import {
   LoginInput,
   ApprovalDecisionInput,
   type LeadStatus,
+  type OpportunityPriority,
+  type OpportunityStage,
 } from "@bgo/contracts";
 import { activeAgents, getPersona, layerCounts, listAgents, loadCatalog, evaluatePolicy } from "@bgo/agents";
 import {
   decideApproval,
   runDemoFlow,
+  runOpportunityMission,
   scoreLead,
   captureLead,
   login as authLogin,
@@ -24,12 +27,19 @@ import {
   importCompaniesCsv,
   MemoryCompanyStore,
   MemoryCostStore,
+  MemoryOpportunityStore,
+  OPPORTUNITY_STAGE_LABELS,
+  OPPORTUNITY_TRANSITIONS,
+  assertOpportunityTransition,
+  checkPriorityRule,
+  maxPriorityForScore,
   CostLedger,
   companiesToCsv,
   type CompanyReviewDecision,
   type CompanyReviewStatus,
   type CompanyStorePort,
   type CostStorePort,
+  type OpportunityStorePort,
   type StorePort,
   OutboxPublisher,
   type OutboxEvent,
@@ -48,6 +58,8 @@ export interface AppContext {
   companies?: CompanyStorePort;
   costStore?: CostStorePort;
   costLimits?: { dailyUnits?: number; monthlyUnits?: number };
+  /** Onda 11 — store de oportunidades comerciais (default: memória). */
+  opportunities?: OpportunityStorePort;
 }
 
 interface Actor {
@@ -78,6 +90,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   const { store } = ctx;
   const devAuth = ctx.devAuth === true;
   const companies = ctx.companies ?? new MemoryCompanyStore();
+  const opportunities = ctx.opportunities ?? new MemoryOpportunityStore(companies, store.workspace.id);
   const costs = new CostLedger(ctx.costStore ?? new MemoryCostStore(), ctx.costLimits ?? {});
   // Ledger de custos alimentado pelo gateway — fire-and-forget, nunca quebra inferência.
   aiGateway.usageSink = (rec) => {
@@ -383,11 +396,65 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     };
   });
 
-  // ---- Aprovações ----
+  // ---- Central de Aprovações (Onda 11 / Fase 05) ----
   app.get("/api/approvals", async (req) => {
-    const status = (req.query as { status?: string }).status as
-      | "pending" | "approved" | "rejected" | "expired" | undefined;
-    return store.listApprovals(status);
+    const q = req.query as { status?: string; action?: string };
+    const status = q.status as "pending" | "approved" | "rejected" | "expired" | undefined;
+    const list = await store.listApprovals(status);
+    if (q.action) return list.filter((a) => a.action === q.action);
+    return list;
+  });
+
+  const SUPERVISED_ACTIONS = new Set([
+    "company.promote_opportunity",
+    "opportunity.sensitive_change",
+    "draft.approve_review",
+    "external.activity_request",
+    "opportunity.priority_override",
+    "budget.limit_override",
+  ]);
+
+  app.post("/api/approvals/request", async (req, reply) => {
+    const act = actor(req);
+    if (act.role === "auditor") {
+      return reply.code(403).send({ error: "role auditor não pode solicitar ações operacionais" });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const action = typeof body.action === "string" ? body.action : "";
+    if (!SUPERVISED_ACTIONS.has(action)) {
+      return reply.code(400).send({
+        error: `action inválida; permitidas: ${[...SUPERVISED_ACTIONS].join(", ")}`,
+      });
+    }
+    const scope = typeof body.scope === "string" && body.scope.trim() ? body.scope.trim().slice(0, 200) : `custom:${action}`;
+    const missionId = typeof body.missionId === "string" && body.missionId ? body.missionId : "mission_supervision";
+    const reason =
+      typeof body.reason === "string" && body.reason.trim()
+        ? body.reason.trim().slice(0, 500)
+        : `Solicitação supervisionada (${action}) na Central de Aprovações`;
+    const preview = typeof body.preview === "object" && body.preview !== null ? (body.preview as Record<string, unknown>) : {};
+    const correlationId = randomUUID();
+    const approval = await store.createApproval({
+      missionId,
+      requestedBy: act.id,
+      approverRole: "approver",
+      action,
+      scope,
+      reason,
+      correlationId,
+      preview: { ...preview, correlationId, requestedAt: new Date().toISOString() },
+    });
+    await audit(act.id, "approval.requested", "ApprovalRequest", approval.id, correlationId, "allowed", {
+      action,
+      scope,
+    });
+    publish("approval.requested.v1", correlationId, {
+      approvalId: approval.id,
+      action,
+      scope,
+      requestedBy: act.id,
+    }, { missionId, agentId: "pledge" });
+    return reply.code(201).send(approval);
   });
 
   app.post("/api/approvals/:id/decision", async (req, reply) => {
@@ -407,6 +474,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
         parsed.data.decision,
         act.id,
         parsed.data.reason,
+        { opportunities, companies },
       );
       return result;
     } catch (e) {
@@ -511,10 +579,13 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     return { ...result, correlationId, simulated: true };
   });
 
-  // ---- Scout: central de prospecção (Onda 10) ----
+  // ---- Scout: central de prospecção (Onda 10 + Onda 11) ----
   app.post("/api/scout/import", async (req, reply) => {
-    const actor = await requireAuth(req, reply);
-    if (!actor) return;
+    const act = await requireAuth(req, reply);
+    if (!act) return;
+    if (act.role === "auditor") {
+      return reply.code(403).send({ error: "role auditor não pode importar empresas" });
+    }
     const body = (req.body ?? {}) as Record<string, unknown>;
     const csv = typeof body.csv === "string" ? body.csv : "";
     if (csv.length > 2_000_000) return reply.code(413).send({ error: "CSV excede 2MB" });
@@ -537,17 +608,17 @@ export function buildApp(ctx: AppContext): FastifyInstance {
         duplicates: result.duplicates,
         rejected: result.rejected.length,
         rejectedDetail: result.rejected.slice(0, 200),
-        importedBy: actor.id,
+        importedBy: act.id,
       });
       batchId = batch.id;
       persisted = await companies.upsertCompanies(batch.id, result.dossiers, missionId);
     } catch (e) {
-      await audit(actor.id, "scout.import.persist_failed", "CompanyImport", fonte, correlationId, "denied", {
+      await audit(act.id, "scout.import.persist_failed", "CompanyImport", fonte, correlationId, "denied", {
         error: (e as Error).message,
       });
       return reply.code(500).send({ error: "falha ao persistir importação — nenhuma empresa gravada parcialmente" });
     }
-    await audit(actor.id, "scout.import", "CompanyImport", batchId ?? fonte, correlationId,
+    await audit(act.id, "scout.import", "CompanyImport", batchId ?? fonte, correlationId,
       result.imported > 0 || result.rejected.length === 0 ? "allowed" : "denied",
       { imported: result.imported, duplicates: result.duplicates, rejected: result.rejected.length, persistedInserted: persisted.inserted });
     publish("scout.import.completed.v1", correlationId, {
@@ -568,7 +639,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   app.get("/api/scout/companies", async (req) => {
     const q = req.query as Record<string, string>;
     const num = (v?: string) => (v !== undefined && v !== "" ? Number(v) : undefined);
-    return companies.listCompanies({
+    const page = await companies.listCompanies({
       ...(num(q.minScore) !== undefined ? { minScore: num(q.minScore)! } : {}),
       ...(num(q.maxScore) !== undefined ? { maxScore: num(q.maxScore)! } : {}),
       ...(q.uf ? { uf: q.uf } : {}),
@@ -581,13 +652,27 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       ...(num(q.page) !== undefined ? { page: num(q.page)! } : {}),
       ...(num(q.pageSize) !== undefined ? { pageSize: num(q.pageSize)! } : {}),
     });
+    const items = await Promise.all(
+      page.items.map(async (c) => {
+        const opp = await opportunities.getOpportunityByCompany(c.id);
+        return {
+          ...c,
+          ...(opp ? { opportunityId: opp.id, opportunityStage: opp.stage } : {}),
+        };
+      }),
+    );
+    return { ...page, items };
   });
 
   app.get("/api/scout/companies/:id", async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const company = await companies.getCompany(id);
     if (!company) return reply.code(404).send({ error: "empresa não encontrada" });
-    return { company, history: await companies.companyHistory(id) };
+    const [history, opportunity] = await Promise.all([
+      companies.companyHistory(id),
+      opportunities.getOpportunityByCompany(id),
+    ]);
+    return { company, history, opportunity: opportunity ?? null };
   });
 
   app.post("/api/scout/companies/:id/review", async (req, reply) => {
@@ -614,6 +699,531 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       return company;
     } catch (e) {
       return reply.code(404).send({ error: (e as Error).message });
+    }
+  });
+
+  // ---- Onda 11 / Fase 02: Criar oportunidade comercial a partir da Central Scout ----
+  async function handlePromoteCompanyToOpportunity(
+    companyId: string,
+    body: Record<string, unknown>,
+    act: Actor,
+    reply: FastifyReply,
+  ) {
+    const correlationId = randomUUID();
+    if (act.role !== "owner" && act.role !== "operator" && act.role !== "approver") {
+      await audit(act.id, "opportunity.create.denied", "Company", companyId, correlationId, "denied", {
+        reason: "role insuficiente",
+        role: act.role,
+      });
+      return reply.code(403).send({ error: "role insuficiente para criar oportunidade comercial" });
+    }
+
+    const justification =
+      typeof body.justification === "string" && body.justification.trim()
+        ? body.justification.trim().slice(0, 500)
+        : "Promoção autorizada da Central Scout para o Pipeline Comercial";
+    const requireApproval = body.requireApproval === true;
+
+    if (requireApproval) {
+      const company = await companies.getCompany(companyId);
+      if (!company) return reply.code(404).send({ error: "empresa não encontrada" });
+      if (company.reviewStatus !== "approved") {
+        return reply.code(409).send({
+          error: `empresa precisa estar aprovada na Central Scout antes de criar oportunidade comercial (status atual: ${company.reviewStatus})`,
+        });
+      }
+      const existing = await opportunities.getOpportunityByCompany(companyId);
+      if (existing) {
+        return reply.code(200).send({ opportunity: existing, created: false, duplicate: true, correlationId });
+      }
+      const approval = await store.createApproval({
+        missionId: company.missionId ?? "mission_scout_promote",
+        requestedBy: act.id,
+        approverRole: "approver",
+        action: "company.promote_opportunity",
+        scope: `company:${company.id}`,
+        reason: justification,
+        correlationId,
+        preview: {
+          companyId: company.id,
+          cnpj: company.cnpj,
+          razaoSocial: company.razaoSocial,
+          score: company.score,
+          justification,
+          correlationId,
+        },
+      });
+      await audit(act.id, "approval.requested", "ApprovalRequest", approval.id, correlationId, "allowed", {
+        action: "company.promote_opportunity",
+        companyId: company.id,
+      });
+      publish(
+        "approval.requested.v1",
+        correlationId,
+        {
+          approvalId: approval.id,
+          action: "company.promote_opportunity",
+          requestedBy: act.id,
+          scope: approval.scope,
+          companyId: company.id,
+        },
+        { agentId: "pledge" },
+      );
+      return reply.code(202).send({ queuedForApproval: true, approval, correlationId });
+    }
+
+    try {
+      const result = await opportunities.promoteCompany({
+        companyId,
+        approvedBy: act.id,
+        justification,
+        correlationId,
+        ownerId: act.id,
+      });
+      if (result.created) {
+        await audit(act.id, "opportunity.create", "Opportunity", result.opportunity.id, correlationId, "allowed", {
+          companyId,
+          stage: result.opportunity.stage,
+          icpScore: result.opportunity.icpScore,
+          priority: result.opportunity.priority,
+          source: result.opportunity.source,
+          justification,
+        });
+        publish(
+          "opportunity.created.v1",
+          correlationId,
+          {
+            opportunityId: result.opportunity.id,
+            companyId,
+            stage: result.opportunity.stage,
+            icpScore: result.opportunity.icpScore,
+            priority: result.opportunity.priority,
+            approvedBy: act.id,
+          },
+          { agentId: "scout" },
+        );
+        return reply.code(201).send({ ...result, correlationId });
+      }
+      await audit(act.id, "opportunity.create.duplicate", "Opportunity", result.opportunity.id, correlationId, "info", {
+        companyId,
+        opportunityId: result.opportunity.id,
+      });
+      return reply.code(200).send({ ...result, correlationId });
+    } catch (e) {
+      const msg = (e as Error).message;
+      await audit(act.id, "opportunity.create.denied", "Company", companyId, correlationId, "denied", {
+        error: msg,
+      });
+      if (msg.includes("não encontrada")) {
+        return reply.code(404).send({ error: msg });
+      }
+      return reply.code(409).send({ error: msg });
+    }
+  }
+
+  app.post("/api/scout/companies/:id/opportunity", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    return handlePromoteCompanyToOpportunity(id, body, actor(req), reply);
+  });
+
+  app.post("/api/opportunities", async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const companyId = typeof body.companyId === "string" ? body.companyId : "";
+    if (!companyId) return reply.code(400).send({ error: "companyId obrigatório" });
+    return handlePromoteCompanyToOpportunity(companyId, body, actor(req), reply);
+  });
+
+  // ---- Onda 11 / Fase 04: Pipeline Comercial Visual ----
+  app.get("/api/opportunities", async (req) => {
+    const q = req.query as Record<string, string>;
+    const num = (v?: string) => (v !== undefined && v !== "" ? Number(v) : undefined);
+    const [page, pendingApprovals, approvedCompaniesPage] = await Promise.all([
+      opportunities.listOpportunities({
+        ...(q.stage ? { stage: q.stage as OpportunityStage } : {}),
+        ...(q.currentAgentId ? { currentAgentId: q.currentAgentId } : {}),
+        ...(q.priority ? { priority: q.priority as OpportunityPriority } : {}),
+        ...(q.companyId ? { companyId: q.companyId } : {}),
+        ...(num(q.minScore) !== undefined ? { minScore: num(q.minScore)! } : {}),
+        ...(num(q.maxScore) !== undefined ? { maxScore: num(q.maxScore)! } : {}),
+        ...(q.q ? { q: q.q } : {}),
+        ...(num(q.page) !== undefined ? { page: num(q.page)! } : {}),
+        ...(num(q.pageSize) !== undefined ? { pageSize: num(q.pageSize)! } : {}),
+      }),
+      store.listApprovals("pending"),
+      companies.listCompanies({ reviewStatus: "approved", pageSize: 200 }),
+    ]);
+
+    const items = page.items.map((o) => {
+      const pendingApprovalsCount = pendingApprovals.filter(
+        (a) =>
+          (o.missionId && a.missionId === o.missionId) ||
+          a.scope.includes(o.id) ||
+          (a.preview && (a.preview as Record<string, unknown>).opportunityId === o.id),
+      ).length;
+      return { ...o, pendingApprovalsCount };
+    });
+
+    const approvedWithOpp = await Promise.all(
+      approvedCompaniesPage.items.map(async (c) => ({
+        company: c,
+        opp: await opportunities.getOpportunityByCompany(c.id),
+      })),
+    );
+    const approvedCompaniesReady = approvedWithOpp.filter((x) => !x.opp).map((x) => x.company);
+
+    return {
+      ...page,
+      items,
+      approvedCompaniesReady,
+      stageLabels: OPPORTUNITY_STAGE_LABELS,
+      validTransitions: OPPORTUNITY_TRANSITIONS,
+    };
+  });
+
+  app.get("/api/opportunities/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const opp = await opportunities.getOpportunity(id);
+    if (!opp) return reply.code(404).send({ error: "oportunidade não encontrada" });
+    const [company, history, companyHistory, mission, allDrafts, allApprovals] = await Promise.all([
+      opp.companyId ? companies.getCompany(opp.companyId) : Promise.resolve(undefined),
+      opportunities.opportunityHistory(opp.id),
+      opp.companyId ? companies.companyHistory(opp.companyId) : Promise.resolve([]),
+      opp.missionId ? store.getMission(opp.missionId) : Promise.resolve(undefined),
+      store.listDrafts(),
+      store.listApprovals(),
+    ]);
+    const tasks = opp.missionId ? await store.listTasks(opp.missionId) : [];
+    const rawRuns = opp.missionId ? await store.listRuns(opp.missionId) : [];
+    const runs = await Promise.all(rawRuns.map(async (r) => ({ ...r, steps: await store.listSteps(r.id) })));
+    const drafts = allDrafts.filter(
+      (d) => d.opportunityId === opp.id || (opp.missionId !== undefined && d.missionId === opp.missionId),
+    );
+    const approvals = allApprovals.filter(
+      (a) =>
+        (opp.missionId !== undefined && a.missionId === opp.missionId) ||
+        a.scope.includes(opp.id) ||
+        (opp.companyId ? a.scope.includes(opp.companyId) : false) ||
+        (a.preview && (a.preview as Record<string, unknown>).opportunityId === opp.id),
+    );
+    return {
+      opportunity: opp,
+      company: company ?? null,
+      history,
+      companyHistory,
+      mission: mission ?? null,
+      tasks,
+      runs,
+      drafts,
+      approvals,
+      validTransitions: OPPORTUNITY_TRANSITIONS[opp.stage] ?? [],
+      maxDirectPriority: maxPriorityForScore(opp.icpScore),
+      stageLabels: OPPORTUNITY_STAGE_LABELS,
+    };
+  });
+
+  app.post("/api/opportunities/:id/transition", async (req, reply) => {
+    const act = actor(req);
+    const id = (req.params as { id: string }).id;
+    const correlationId = randomUUID();
+    if (act.role !== "owner" && act.role !== "operator" && act.role !== "approver") {
+      await audit(act.id, "opportunity.transition.denied", "Opportunity", id, correlationId, "denied", {
+        reason: "role insuficiente",
+        role: act.role,
+      });
+      return reply.code(403).send({ error: "role insuficiente para movimentar oportunidade no pipeline" });
+    }
+    const opp = await opportunities.getOpportunity(id);
+    if (!opp) return reply.code(404).send({ error: "oportunidade não encontrada" });
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const to = body.to as OpportunityStage | undefined;
+    if (!to || !(to in OPPORTUNITY_TRANSITIONS)) {
+      return reply.code(400).send({ error: "estágio de destino inválido" });
+    }
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : undefined;
+    const currentAgentId =
+      body.currentAgentId === null
+        ? null
+        : typeof body.currentAgentId === "string"
+          ? body.currentAgentId
+          : undefined;
+    const nextAction =
+      body.nextAction === null
+        ? null
+        : typeof body.nextAction === "string"
+          ? body.nextAction.slice(0, 500)
+          : undefined;
+
+    try {
+      assertOpportunityTransition(opp.stage, to, reason);
+    } catch (e) {
+      await audit(act.id, "opportunity.transition.denied", "Opportunity", id, correlationId, "denied", {
+        fromStage: opp.stage,
+        toStage: to,
+        error: (e as Error).message,
+      });
+      return reply.code(409).send({ error: (e as Error).message });
+    }
+
+    if (body.requireApproval === true) {
+      const approval = await store.createApproval({
+        missionId: opp.missionId ?? "mission_pipeline",
+        requestedBy: act.id,
+        approverRole: "approver",
+        action: "opportunity.sensitive_change",
+        scope: `opportunity:${opp.id}:stage:${to}`,
+        reason: reason ?? `Alteração comercial sensível de estágio: ${opp.stage} → ${to}`,
+        correlationId,
+        preview: {
+          opportunityId: opp.id,
+          companyId: opp.companyId,
+          fromStage: opp.stage,
+          toStage: to,
+          ...(reason !== undefined ? { reason } : {}),
+          ...(currentAgentId !== undefined ? { currentAgentId } : {}),
+          ...(nextAction !== undefined ? { nextAction } : {}),
+          correlationId,
+        },
+      });
+      await audit(act.id, "approval.requested", "ApprovalRequest", approval.id, correlationId, "allowed", {
+        action: "opportunity.sensitive_change",
+        opportunityId: opp.id,
+        toStage: to,
+      });
+      publish(
+        "approval.requested.v1",
+        correlationId,
+        {
+          approvalId: approval.id,
+          action: "opportunity.sensitive_change",
+          requestedBy: act.id,
+          scope: approval.scope,
+          opportunityId: opp.id,
+          toStage: to,
+        },
+        { ...(opp.missionId ? { missionId: opp.missionId } : {}), agentId: "pledge" },
+      );
+      return reply.code(202).send({ queuedForApproval: true, approval, correlationId });
+    }
+
+    const fromStage = opp.stage;
+    const updated = await opportunities.transitionOpportunity(id, to, act.id, {
+      ...(reason !== undefined ? { reason } : {}),
+      ...(currentAgentId !== undefined ? { currentAgentId } : {}),
+      ...(nextAction !== undefined ? { nextAction } : {}),
+      correlationId,
+    });
+    await audit(act.id, "opportunity.transition", "Opportunity", id, correlationId, "allowed", {
+      fromStage,
+      toStage: to,
+      ...(reason !== undefined ? { reason } : {}),
+    });
+    publish(
+      "opportunity.stage_changed.v1",
+      correlationId,
+      {
+        opportunityId: id,
+        companyId: opp.companyId,
+        fromStage,
+        toStage: to,
+        actor: act.id,
+        ...(reason !== undefined ? { reason } : {}),
+      },
+      { ...(opp.missionId ? { missionId: opp.missionId } : {}), ...(updated.currentAgentId ? { agentId: updated.currentAgentId } : {}) },
+    );
+    return updated;
+  });
+
+  app.post("/api/opportunities/:id/priority", async (req, reply) => {
+    const act = actor(req);
+    const id = (req.params as { id: string }).id;
+    const correlationId = randomUUID();
+    if (act.role !== "owner" && act.role !== "operator" && act.role !== "approver") {
+      await audit(act.id, "opportunity.priority.denied", "Opportunity", id, correlationId, "denied", {
+        reason: "role insuficiente",
+      });
+      return reply.code(403).send({ error: "role insuficiente para alterar prioridade comercial" });
+    }
+    const opp = await opportunities.getOpportunity(id);
+    if (!opp) return reply.code(404).send({ error: "oportunidade não encontrada" });
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const priority = body.priority as OpportunityPriority | undefined;
+    if (priority !== "low" && priority !== "normal" && priority !== "high" && priority !== "critical") {
+      return reply.code(400).send({ error: "priority deve ser low|normal|high|critical" });
+    }
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : undefined;
+    const rule = checkPriorityRule(opp.icpScore, priority);
+
+    if (!rule.allowedDirect) {
+      const approval = await store.createApproval({
+        missionId: opp.missionId ?? "mission_pipeline_priority",
+        requestedBy: act.id,
+        approverRole: "approver",
+        action: "opportunity.priority_override",
+        scope: `opportunity:${opp.id}:priority:${priority}`,
+        reason: reason ?? rule.reason ?? `Exceção de prioridade comercial: ${opp.priority} → ${priority}`,
+        correlationId,
+        preview: {
+          opportunityId: opp.id,
+          companyId: opp.companyId,
+          fromPriority: opp.priority,
+          priority,
+          icpScore: opp.icpScore,
+          maxAllowed: rule.maxAllowed,
+          reason: reason ?? rule.reason,
+          correlationId,
+        },
+      });
+      await audit(act.id, "approval.requested", "ApprovalRequest", approval.id, correlationId, "allowed", {
+        action: "opportunity.priority_override",
+        opportunityId: opp.id,
+        fromPriority: opp.priority,
+        requestedPriority: priority,
+        maxAllowed: rule.maxAllowed,
+      });
+      publish(
+        "approval.requested.v1",
+        correlationId,
+        {
+          approvalId: approval.id,
+          action: "opportunity.priority_override",
+          requestedBy: act.id,
+          scope: approval.scope,
+          opportunityId: opp.id,
+          requestedPriority: priority,
+        },
+        { ...(opp.missionId ? { missionId: opp.missionId } : {}), agentId: "pledge" },
+      );
+      return reply.code(202).send({ queuedForApproval: true, approval, rule, correlationId });
+    }
+
+    const fromPriority = opp.priority;
+    const updated = await opportunities.updateOpportunity(
+      id,
+      { priority },
+      act.id,
+      {
+        action: "priority_changed",
+        reason: reason ?? `Prioridade ajustada dentro do teto determinístico (${rule.maxAllowed})`,
+        details: { fromPriority, toPriority: priority, icpScore: opp.icpScore },
+        correlationId,
+      },
+    );
+    await audit(act.id, "opportunity.priority_changed", "Opportunity", id, correlationId, "allowed", {
+      fromPriority,
+      toPriority: priority,
+    });
+    publish(
+      "opportunity.priority_changed.v1",
+      correlationId,
+      { opportunityId: id, fromPriority, toPriority: priority, actor: act.id },
+      { ...(opp.missionId ? { missionId: opp.missionId } : {}), agentId: "meridian" },
+    );
+    return { opportunity: updated, queuedForApproval: false, rule, correlationId };
+  });
+
+  // ---- Onda 11 / Fase 03: Orquestração dos 6 Agentes na Oportunidade ----
+  app.post("/api/opportunities/:id/mission", async (req, reply) => {
+    const act = actor(req);
+    const id = (req.params as { id: string }).id;
+    const correlationId = randomUUID();
+    if (act.role !== "owner" && act.role !== "operator" && act.role !== "approver") {
+      await audit(act.id, "opportunity.mission.denied", "Opportunity", id, correlationId, "denied", {
+        reason: "role insuficiente",
+      });
+      return reply.code(403).send({ error: "role insuficiente para executar missão comercial" });
+    }
+    const opp = await opportunities.getOpportunity(id);
+    if (!opp) return reply.code(404).send({ error: "oportunidade não encontrada" });
+
+    const budget = await costs.assertBudget();
+    if (!budget.allowed) {
+      const bStatus = await costs.budgetStatus();
+      const approval = await store.createApproval({
+        missionId: opp.missionId ?? "mission_budget_override",
+        requestedBy: act.id,
+        approverRole: "owner",
+        action: "budget.limit_override",
+        scope: `opportunity:${id}:budget`,
+        reason: budget.reason ?? "Execução acima do limite de orçamento configurado",
+        correlationId,
+        preview: {
+          opportunityId: id,
+          companyId: opp.companyId,
+          reason: budget.reason,
+          daily: bStatus.daily,
+          monthly: bStatus.monthly,
+          correlationId,
+        },
+      });
+      await audit(act.id, "ai.budget_blocked", "Opportunity", id, correlationId, "denied", {
+        reason: budget.reason,
+        approvalId: approval.id,
+      });
+      publish(
+        "approval.requested.v1",
+        correlationId,
+        {
+          approvalId: approval.id,
+          action: "budget.limit_override",
+          requestedBy: act.id,
+          scope: approval.scope,
+          opportunityId: id,
+          reason: budget.reason,
+        },
+        { agentId: "aegis" },
+      );
+      return reply.code(429).send({
+        error: `orçamento de IA excedido: ${budget.reason}`,
+        queuedForApproval: true,
+        approval,
+      });
+    }
+
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const result = await runOpportunityMission(
+        {
+          store,
+          companies,
+          opportunities,
+          diagnoseHook: async ({ company, missionId, correlationId: cid }) => {
+            const diag = await meridianDiagnose(aiGateway, {
+              company: company.razaoSocial,
+              source: `scout:${company.fonte}`,
+              score: company.score,
+              gaps: company.gaps,
+              missionId,
+              correlationId: cid,
+              icp: ICP_HYPOTHESIS,
+              approvedClaims: approvedClaimIds(),
+            });
+            return {
+              ...(diag.diagnosis !== undefined ? { diagnosis: diag.diagnosis } : {}),
+              ...(diag.justification !== undefined ? { justification: diag.justification } : {}),
+              simulated: diag.simulated,
+              provider: diag.provider,
+              model: diag.model,
+              costUnits: diag.simulated ? 2 : 5,
+            };
+          },
+        },
+        {
+          opportunityId: id,
+          requester: act.id,
+          correlationId,
+          ...(body.forceNew === true ? { forceNew: true } : {}),
+        },
+      );
+      return {
+        ...result,
+        mode: aiGateway.status().mode,
+        simulated: aiGateway.status().mode === "simulated",
+      };
+    } catch (e) {
+      return reply.code(409).send({ error: (e as Error).message });
     }
   });
 
@@ -702,8 +1312,13 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   });
 
   app.get("/api/demo/status", async () => {
-    const [pending, missions, leads, drafts] = await Promise.all([
-      store.listApprovals("pending"), store.listMissions(), store.listLeads(), store.listDrafts(),
+    const [pending, missions, leads, drafts, oppsPage, companiesPage] = await Promise.all([
+      store.listApprovals("pending"),
+      store.listMissions(),
+      store.listLeads(),
+      store.listDrafts(),
+      opportunities.listOpportunities({ pageSize: 1 }),
+      companies.listCompanies({ pageSize: 1 }),
     ]);
     return {
       simulated: true,
@@ -712,6 +1327,8 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       missions: missions.length,
       leads: leads.length,
       drafts: drafts.length,
+      opportunities: oppsPage.total,
+      companies: companiesPage.total,
     };
   });
 

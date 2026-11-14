@@ -208,6 +208,7 @@ export class MemoryOpportunityStore implements OpportunityStorePort {
         approvedAt: now,
         correlationId: input.correlationId,
         lastActivityAt: now,
+        icpVersion: 1,
         ...(input.ownerId !== undefined ? { ownerId: input.ownerId } : {}),
         createdAt: now,
         updatedAt: now,

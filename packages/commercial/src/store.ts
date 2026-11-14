@@ -468,6 +468,7 @@ export class Store implements StorePort {
       ...(input.template !== undefined ? { template: input.template } : {}),
       claimRefs: input.claimRefs,
       text: input.text,
+      version: 1,
       status: "draft",
       simulated: true,
       createdBy: input.createdBy,

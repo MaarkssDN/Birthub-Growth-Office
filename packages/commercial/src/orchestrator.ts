@@ -23,6 +23,9 @@ import {
   maxPriorityForScore,
   type OpportunityStorePort,
 } from "./opportunity-store";
+import { evaluateCompanyIcp, DEFAULT_COMMERCIAL_ICP_PROFILE } from "./icp-engine";
+import { validateDraftClaims, CANONICAL_OFFER_ITEMS, type OfferCatalogStorePort } from "./offer-catalog";
+import type { IcpStorePort } from "./icp-store";
 
 export interface DemoFlowResult {
   correlationId: string;
@@ -49,6 +52,16 @@ export interface OpportunityMissionResult {
     gaps: string[];
     diagnosis: string;
     simulated: boolean;
+  };
+  icpProfile?: {
+    id: string;
+    name: string;
+    version: number;
+  };
+  structuredOutput?: {
+    facts: string[];
+    inferences: string[];
+    recommendations: string[];
   };
   duplicate: boolean;
 }
@@ -409,6 +422,8 @@ export async function runOpportunityMission(
     store: StorePort;
     companies: CompanyStorePort;
     opportunities: OpportunityStorePort;
+    icpStore?: IcpStorePort;
+    offerCatalog?: OfferCatalogStorePort;
     diagnoseHook?: (input: {
       missionId: string;
       correlationId: string;
@@ -420,6 +435,7 @@ export async function runOpportunityMission(
     requester: string;
     correlationId?: string;
     forceNew?: boolean;
+    icpProfileId?: string;
   },
 ): Promise<OpportunityMissionResult> {
   const { store, companies, opportunities } = deps;
@@ -465,6 +481,19 @@ export async function runOpportunityMission(
 
   const correlationId = input.correlationId ?? randomUUID();
   const runs: ExecutionRun[] = [];
+
+  // Resolução do Perfil de ICP Comercial Ativo (Onda 12 / Fase 02)
+  let activeIcp = DEFAULT_COMMERCIAL_ICP_PROFILE;
+  if (deps.icpStore) {
+    if (input.icpProfileId) {
+      const p = await deps.icpStore.getProfile(input.icpProfileId);
+      if (p) activeIcp = p;
+    } else {
+      const p = await deps.icpStore.getActiveProfile(opp.workspaceId);
+      if (p) activeIcp = p;
+    }
+  }
+  const evalResult = evaluateCompanyIcp(company, activeIcp);
 
   // 1. AEGIS — Supervisor Central: cria e planeja a missão comercial
   const mission = await store.createMission({
@@ -703,7 +732,35 @@ export async function runOpportunityMission(
   );
 
   // 4. MERIDIAN — Qualificação SDR: avalia aderência ao ICP, lacunas e prioridades
-  const recommendedPriority = maxPriorityForScore(company.score);
+  const effectiveScore = evalResult.score;
+  const recommendedPriority = maxPriorityForScore(effectiveScore);
+
+  const structuredOutput = {
+    facts: [
+      `CNPJ: ${company.cnpj}`,
+      `Razão Social: ${company.razaoSocial}`,
+      `Nome Fantasia: ${company.nomeFantasia || "Não informado"}`,
+      `Situação Cadastral: ${company.situacao || "Não informada"}`,
+      `CNAE Primário: ${company.cnae || "Não informado"}`,
+      `Porte Cadastral: ${company.porte || "Não informado"}`,
+      `Localização: ${company.municipio ? company.municipio + "/" : ""}${company.uf || "UF não informada"}`,
+      `Fonte de Importação: ${company.fonte}`,
+    ],
+    inferences: [
+      `Perfil de ICP Utilizado: ${activeIcp.name} (v${activeIcp.version})`,
+      `Aderência ao ICP: score ${effectiveScore}/100`,
+      ...evalResult.reasons,
+      ...(evalResult.gaps.length > 0 ? [`Lacunas de qualificação: ${evalResult.gaps.join("; ")}`] : ["Cadastro completo no dossiê"]),
+      evalResult.disclaimer,
+    ],
+    recommendations: [
+      `Estágio comercial recomendado: ${effectiveScore >= 50 ? "qualified" : "nurture"}`,
+      `Prioridade comercial recomendada: ${recommendedPriority}`,
+      "Abordagem institucional inicial recomendada via minuta do Beacon (sem envio automático)",
+      "Confirmação de stack de tecnologia e responsáveis diretos na etapa de descoberta",
+    ],
+  };
+
   let diagResult: {
     diagnosis?: string;
     justification?: string;
@@ -712,8 +769,8 @@ export async function runOpportunityMission(
     model: string;
     costUnits?: number;
   } = {
-    diagnosis: `[DETERMINÍSTICO/SIMULADO] Conta ${company.razaoSocial} apresenta score ICP ${company.score}/100 (${company.scoreVersion}) com ${company.reasons.length} evidências e ${company.gaps.length} lacunas.`,
-    justification: `Evidências: ${company.reasons.join("; ") || "nenhuma"}. Lacunas: ${company.gaps.join("; ") || "nenhuma"}. Prioridade recomendada: ${recommendedPriority}.`,
+    diagnosis: `[DETERMINÍSTICO/SIMULADO] Conta ${company.razaoSocial} avaliada pelo perfil ICP '${activeIcp.name}' (v${activeIcp.version}) com score ${effectiveScore}/100.`,
+    justification: `Evidências: ${evalResult.reasons.join("; ") || "nenhuma"}. Lacunas: ${evalResult.gaps.join("; ") || "nenhuma"}. Prioridade: ${recommendedPriority}.`,
     simulated: true,
     provider: "mock",
     model: "deterministic-rubric-v1",
@@ -729,13 +786,14 @@ export async function runOpportunityMission(
   }
 
   const meridianOutput = {
-    icpScore: company.score,
-    scoreVersion: company.scoreVersion,
+    icpScore: effectiveScore,
+    scoreVersion: `${activeIcp.name}-v${activeIcp.version}`,
     recommendedPriority,
-    evidences: company.reasons,
-    gaps: company.gaps,
+    evidences: evalResult.reasons,
+    gaps: evalResult.gaps,
     diagnosis: diagResult.diagnosis ?? "",
     justification: diagResult.justification ?? "",
+    structuredOutput,
     simulated: diagResult.simulated,
     provider: diagResult.provider,
     model: diagResult.model,
@@ -751,9 +809,11 @@ export async function runOpportunityMission(
     runInput: {
       companyId: company.id,
       razaoSocial: company.razaoSocial,
-      icpScore: company.score,
-      reasons: company.reasons,
-      gaps: company.gaps,
+      icpScore: effectiveScore,
+      icpProfileId: activeIcp.id,
+      icpVersion: activeIcp.version,
+      reasons: evalResult.reasons,
+      gaps: evalResult.gaps,
     },
     runOutput: meridianOutput,
     steps: [
@@ -761,15 +821,15 @@ export async function runOpportunityMission(
         tool: "lead.score",
         action: "apply_rubric",
         inputRef: `company:${company.id}`,
-        outputRef: `score:${company.score}`,
-        decision: { score: company.score, recommendedPriority, evidences: company.reasons },
+        outputRef: `score:${effectiveScore}`,
+        decision: { score: effectiveScore, recommendedPriority, evidences: evalResult.reasons, structuredOutput },
       },
       {
         tool: "lead.score",
         action: "evaluate_icp_gaps",
         inputRef: `dossier:${company.cnpj}`,
-        outputRef: `gaps:${company.gaps.length}`,
-        decision: { gaps: company.gaps, simulated: diagResult.simulated },
+        outputRef: `gaps:${evalResult.gaps.length}`,
+        decision: { gaps: evalResult.gaps, simulated: diagResult.simulated },
       },
     ],
   });
@@ -779,19 +839,25 @@ export async function runOpportunityMission(
   await advanceStage(
     "qualified",
     "meridian",
-    `Qualificação SDR concluída pelo Meridian (score ICP ${company.score}/100, prioridade ${recommendedPriority})`,
+    `Qualificação SDR concluída pelo Meridian (score ICP ${effectiveScore}/100, prioridade ${recommendedPriority})`,
     "beacon",
     "Beacon preparando proposta de abordagem personalizada com claims aprovados",
     {
       priority: recommendedPriority,
-      icpScore: company.score,
-      details: { recommendedPriority, gaps: company.gaps, simulated: diagResult.simulated },
+      icpScore: effectiveScore,
+      details: { recommendedPriority, gaps: evalResult.gaps, simulated: diagResult.simulated },
     },
   );
 
   // 5. BEACON — Prospecção Outbound: rascunho personalizado apenas com claims aprovados (sem envio externo)
-  const approvedClaims = claimsForDraft();
-  const claimIds = approvedClaimIds();
+  const catalogItems = deps.offerCatalog
+    ? await deps.offerCatalog.listItems(opp.workspaceId, { status: "approved" })
+    : CANONICAL_OFFER_ITEMS.filter((i) => i.status === "approved");
+  const approvedItemIds = catalogItems.map((c) => c.id);
+  const validatedClaims = validateDraftClaims(approvedItemIds.slice(0, 3), catalogItems);
+  const claimIds = validatedClaims.approvedClaims.length > 0
+    ? validatedClaims.approvedClaims.map((c) => c.id)
+    : approvedClaimIds();
   const externalSendPolicy = evaluatePolicy({
     agentId: "beacon",
     tool: "channel.send",
@@ -833,7 +899,7 @@ export async function runOpportunityMission(
     },
     runOutput: {
       claimRefs: claimIds,
-      approvedClaimsCount: approvedClaims.length,
+      approvedClaimsCount: approvedItemIds.length,
       externalSendAllowed: externalSendPolicy.allowed,
       externalSendBlockedReason: externalSendPolicy.reason,
       draftLength: draftText.length,
@@ -998,13 +1064,19 @@ export async function runOpportunityMission(
     draft,
     approval,
     qualification: {
-      icpScore: company.score,
+      icpScore: effectiveScore,
       recommendedPriority,
-      evidences: company.reasons,
-      gaps: company.gaps,
+      evidences: evalResult.reasons,
+      gaps: evalResult.gaps,
       diagnosis: diagResult.diagnosis ?? "",
       simulated: diagResult.simulated,
     },
+    icpProfile: {
+      id: activeIcp.id,
+      name: activeIcp.name,
+      version: activeIcp.version,
+    },
+    structuredOutput,
     duplicate: false,
   };
 }
@@ -1019,6 +1091,8 @@ export async function decideApproval(
   opts?: {
     opportunities?: OpportunityStorePort;
     companies?: CompanyStorePort;
+    icpStore?: IcpStorePort;
+    offerCatalog?: OfferCatalogStorePort;
   },
 ): Promise<{ approval: ApprovalRequest; missionStatus: Mission["status"]; opportunity?: Opportunity }> {
   const before = await store.getApproval(approvalId);
@@ -1214,6 +1288,36 @@ export async function decideApproval(
       "info",
       { decision, externalExecutionBlocked: true, note: "Aprovação registrada; execução externa permanece bloqueada pela policy" },
     );
+  } else if (approval.action === "icp.activate" && opts?.icpStore) {
+    const preview = approval.preview ?? {};
+    const profileId = typeof preview.profileId === "string" ? preview.profileId : undefined;
+    if (decision === "approved" && profileId) {
+      const active = await opts.icpStore.activateProfile(profileId, decidedBy);
+      emit(store, "icp.approved.v1", correlationId, {
+        profileId: active.id,
+        version: active.version,
+        approvedBy: decidedBy,
+      }, { missionId });
+      await audit(store, decidedBy, "icp.activate", "CommercialIcpProfile", active.id, correlationId, "allowed", {
+        version: active.version,
+      });
+    }
+  } else if (approval.action === "offer.approve" && opts?.offerCatalog) {
+    const preview = approval.preview ?? {};
+    const itemId = typeof preview.itemId === "string" ? preview.itemId : undefined;
+    if (decision === "approved" && itemId) {
+      const item = await opts.offerCatalog.approveItem(itemId, decidedBy);
+      if (item) {
+        emit(store, "offer_catalog.item_approved.v1", correlationId, {
+          itemId: item.id,
+          category: item.category,
+          approvedBy: decidedBy,
+        }, { missionId });
+        await audit(store, decidedBy, "offer.approve", "CommercialOfferItem", item.id, correlationId, "allowed", {
+          category: item.category,
+        });
+      }
+    }
   }
 
   const missionStatus: Mission["status"] = decision === "approved" ? "completed" : "cancelled";

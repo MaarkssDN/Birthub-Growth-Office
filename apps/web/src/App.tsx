@@ -5,6 +5,7 @@ import { CaptureView, LoginView } from "./views";
 import { CostsView, PipelineView, ScoutView } from "./scout";
 import { CommunicationView, IcpView, OfferCatalogView } from "./onda12-views";
 import { ReadinessView, ConsolidatedDossierView, PilotMetricsView } from "./onda13-views";
+import { AiProvidersView } from "./onda14-views";
 
 // Code-split: o escritório 3D (three.js) só carrega ao abrir a aba
 const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ default: m.OfficeView })));
@@ -12,6 +13,7 @@ const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ defau
 type Tab =
   | "capture"
   | "dashboard"
+  | "ai_providers"
   | "agents"
   | "leads"
   | "scout"
@@ -33,6 +35,7 @@ const PUBLIC_TABS: Tab[] = ["capture"];
 const TABS: { id: Tab; label: string }[] = [
   { id: "capture", label: "Captação" },
   { id: "dashboard", label: "Dashboard" },
+  { id: "ai_providers", label: "Provedores IA" },
   { id: "dossier", label: "Ficha Consolidada" },
   { id: "readiness", label: "Prontidão Comercial" },
   { id: "pilot_metrics", label: "Métricas Piloto" },
@@ -768,6 +771,7 @@ export default function App() {
           />
         )}
         {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
+        {user && tab === "ai_providers" && <AiProvidersView />}
         {user && tab === "dossier" && <ConsolidatedDossierView />}
         {user && tab === "readiness" && <ReadinessView />}
         {user && tab === "pilot_metrics" && <PilotMetricsView />}

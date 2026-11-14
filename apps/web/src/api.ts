@@ -474,4 +474,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
     }),
+
+  // ---- Onda 14: Central de Provedores de IA Real e Multiprovedor ----
+  getAiProviders: () => req<any>("/ai/providers"),
+  testAiProvider: (id: string) => req<any>(`/ai/providers/${id}/test`, { method: "POST" }),
+  updateAiPriority: (priority: string[]) =>
+    req<any>("/ai/providers/priority", { method: "POST", body: JSON.stringify({ priority }) }),
+  getAiHistory: () => req<any>("/ai/history"),
+  diagnoseWithAi: (body: any) =>
+    req<any>("/ai/meridian-diagnose", { method: "POST", body: JSON.stringify(body) }),
 };

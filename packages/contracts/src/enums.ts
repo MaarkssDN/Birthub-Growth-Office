@@ -126,6 +126,42 @@ export type OfferCategory = z.infer<typeof OfferCategory>;
 export const OfferItemStatus = z.enum(["approved", "pending_validation", "rejected"]);
 export type OfferItemStatus = z.infer<typeof OfferItemStatus>;
 
+// ---------- Onda 14: IA Real Multiprovedor — Prioridade Gratuita ----------
+
+export const AiProviderType = z.enum([
+  "ollama",
+  "groq",
+  "gemini",
+  "openrouter",
+  "cloudflare",
+  "xai",
+  "mock",
+]);
+export type AiProviderType = z.infer<typeof AiProviderType>;
+
+export const AiCostTier = z.enum(["free", "freemium", "paid"]);
+export type AiCostTier = z.infer<typeof AiCostTier>;
+
+export const AiProviderStatus = z.enum([
+  "ready",
+  "service_ready_no_models",
+  "service_down",
+  "credentialed",
+  "blocked_no_credential",
+  "blocked_unauthorized_expense",
+  "disabled",
+  "rate_limited",
+  "error",
+]);
+export type AiProviderStatus = z.infer<typeof AiProviderStatus>;
+
+export const AiPrivacyTier = z.enum([
+  "local_confidential",
+  "synthetic_only",
+  "blocked",
+]);
+export type AiPrivacyTier = z.infer<typeof AiPrivacyTier>;
+
 /** Estados visuais do contrato de eventos do escritório (Onda 02/Fase 06). */
 export const VISUAL_STATES = ["idle","listening","processing","speaking","success","error"] as const;
 export type VisualState = (typeof VISUAL_STATES)[number];

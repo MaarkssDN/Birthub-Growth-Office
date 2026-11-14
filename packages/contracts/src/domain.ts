@@ -12,6 +12,10 @@ import {
   CommunicationDispatchStatus,
   OfferCategory,
   OfferItemStatus,
+  AiProviderType,
+  AiCostTier,
+  AiProviderStatus,
+  AiPrivacyTier,
 } from "./enums";
 
 export const Uuid = z.string().min(8);
@@ -587,3 +591,98 @@ export const PilotMetricsReport = z.object({
   }),
 });
 export type PilotMetricsReport = z.infer<typeof PilotMetricsReport>;
+
+// ---------- Onda 14: IA Real Multiprovedor — Prioridade Gratuita ----------
+
+export const AiHardwareInfo = z.object({
+  cpu: z.string(),
+  cores: z.number().int().optional(),
+  ramGb: z.number(),
+  gpu: z.string(),
+  vramMb: z.number().optional(),
+  os: z.string().optional(),
+});
+export type AiHardwareInfo = z.infer<typeof AiHardwareInfo>;
+
+export const AiProviderInfo = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: AiProviderType,
+  status: AiProviderStatus,
+  isLocal: z.boolean(),
+  costTier: AiCostTier,
+  model: z.string(),
+  availableModels: z.array(z.string()),
+  priority: z.number().int(),
+  latencyMs: z.number().optional(),
+  error: z.string().optional(),
+  rateLimit: z
+    .object({
+      rpm: z.number().optional(),
+      rpd: z.number().optional(),
+      resetAt: IsoDate.optional(),
+    })
+    .optional(),
+  privacyTier: AiPrivacyTier,
+  hardwareInfo: AiHardwareInfo.optional(),
+});
+export type AiProviderInfo = z.infer<typeof AiProviderInfo>;
+
+export const AiProviderRegistry = z.object({
+  activeProviderId: z.string(),
+  providers: z.array(AiProviderInfo),
+  hardware: AiHardwareInfo,
+  routerPolicy: z.object({
+    maxExternalCostBrl: z.literal(0),
+    preferLocal: z.literal(true),
+    enforcePrivacySanitization: z.literal(true),
+    allowPaidTier: z.literal(false),
+  }),
+  updatedAt: IsoDate,
+});
+export type AiProviderRegistry = z.infer<typeof AiProviderRegistry>;
+
+export const AiInferenceLog = z.object({
+  id: z.string(),
+  timestamp: IsoDate,
+  agentId: z.string(),
+  promptKey: z.string(),
+  promptVersion: z.string(),
+  provider: z.string(),
+  providerType: AiProviderType,
+  model: z.string(),
+  simulated: z.boolean(),
+  isLocal: z.boolean(),
+  status: z.enum(["success", "failure", "blocked", "fallback"]),
+  latencyMs: z.number(),
+  tokensIn: z.number().int(),
+  tokensOut: z.number().int(),
+  costUnits: z.number().int(),
+  costBrl: z.number(),
+  error: z.string().optional(),
+  missionId: z.string().optional(),
+  correlationId: z.string().optional(),
+});
+export type AiInferenceLog = z.infer<typeof AiInferenceLog>;
+
+export const MultiProviderDiagnosisInput = z.object({
+  leadId: z.string().optional(),
+  opportunityId: z.string().optional(),
+  missionId: z.string().optional(),
+  correlationId: z.string().optional(),
+  preferredProvider: z.string().optional(),
+  preferredModel: z.string().optional(),
+  forceReal: z.boolean().optional(),
+  synthetic: z.boolean().default(true),
+  name: z.string().optional(),
+  company: z.string().optional(),
+  interest: z.string().optional(),
+  source: z.string().optional(),
+  status: z.string().optional(),
+  score: z.number().optional(),
+  rubricVersion: z.string().optional(),
+  gaps: z.array(z.string()).optional(),
+  approvedClaims: z.array(z.string()).optional(),
+  icp: z.unknown().optional(),
+});
+export type MultiProviderDiagnosisInput = z.infer<typeof MultiProviderDiagnosisInput>;

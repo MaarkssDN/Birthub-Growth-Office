@@ -213,6 +213,8 @@ function AgentCommercialContext({
   const missions = useAsync(() => api.missions(), [agentId]);
   const drafts = useAsync(() => api.drafts(), [agentId]);
   const approvals = useAsync(() => api.approvals("pending"), [agentId]);
+  const activeIcp = useAsync(() => api.getActiveIcp(), [agentId]);
+  const dispatches = useAsync(() => api.listCommunicationDispatches(), [agentId]);
 
   const topCompany = companies.data?.items[0];
   const topOpp = opportunities.data?.items[0];
@@ -231,6 +233,10 @@ function AgentCommercialContext({
         <div className="kv">
           <span>Oportunidades no Pipeline</span>
           <b>{opportunities.data?.total ?? 0}</b>
+        </div>
+        <div className="kv">
+          <span>ICP Vigente</span>
+          <b>{activeIcp.data?.name ?? "ICP Padrão"} v{activeIcp.data?.version ?? 1}</b>
         </div>
         {topCompany ? (
           <div style={{ margin: "6px 0", fontSize: 12 }}>
@@ -304,6 +310,10 @@ function AgentCommercialContext({
     return (
       <div data-testid="office-meridian-context" style={{ marginTop: 10 }}>
         <h4>Qualificação SDR — Atividade Meridian</h4>
+        <div className="kv">
+          <span>ICP Aplicado</span>
+          <b>{activeIcp.data?.name ?? "ICP Padrão"} v{activeIcp.data?.version ?? 1}</b>
+        </div>
         {topOpp ? (
           <div style={{ margin: "6px 0", fontSize: 12 }}>
             <div>
@@ -312,11 +322,14 @@ function AgentCommercialContext({
             <div>
               Aderência ICP: <b>{topOpp.icpScore}/100</b> · Prioridade: <b>{topOpp.priority}</b>
             </div>
-            <div className="muted">
-              Evidências: {topOpp.company?.reasons.join("; ") || "rubrica determinística"}
+            <div className="muted" style={{ marginTop: 4 }}>
+              <b>Fatos estruturados:</b> {topOpp.company?.reasons.join("; ") || "rubrica determinística"}
             </div>
             <div className="muted">
-              Lacunas: {topOpp.company?.gaps.join("; ") || "nenhuma lacuna crítica"}
+              <b>Inferências comerciais:</b> score {topOpp.icpScore}/100 calculado por pesos versionados
+            </div>
+            <div className="muted">
+              <b>Recomendações:</b> {topOpp.priority === "critical" || topOpp.priority === "high" ? "Avançar abordagem outbound supervisionada" : "Nutrir conta com monitoramento periódico"}
             </div>
           </div>
         ) : (
@@ -333,6 +346,10 @@ function AgentCommercialContext({
         <div className="kv">
           <span>Rascunhos gerados</span>
           <b>{drafts.data?.length ?? 0}</b>
+        </div>
+        <div className="kv">
+          <span>Governança de Oferta</span>
+          <b style={{ color: "var(--cyan)" }}>Apenas claims validados</b>
         </div>
         {latestDraft ? (
           <div style={{ margin: "6px 0", fontSize: 12 }}>
@@ -360,6 +377,10 @@ function AgentCommercialContext({
         <div className="kv">
           <span>Aprovações pendentes</span>
           <b>{pendingCount}</b>
+        </div>
+        <div className="kv">
+          <span>Disparos Sandbox</span>
+          <b>{dispatches.data?.total ?? 0} simulados</b>
         </div>
         <div className="kv">
           <span>Próximo follow-up</span>

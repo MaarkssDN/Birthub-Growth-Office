@@ -379,7 +379,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  runOpportunityMission: (id: string, body?: { forceNew?: boolean }) =>
+  runOpportunityMission: (id: string, body?: { forceNew?: boolean; icpProfileId?: string }) =>
     req<{
       correlationId: string;
       opportunity: OpportunityRecord;
@@ -395,10 +395,71 @@ export const api = {
         diagnosis: string;
         simulated: boolean;
       };
+      icpProfile?: { id: string; name: string; version: number };
+      structuredOutput?: { facts: string[]; inferences: string[]; recommendations: string[] };
       duplicate?: boolean;
       simulated: boolean;
     }>(`/opportunities/${id}/mission`, {
       method: "POST",
       body: JSON.stringify(body ?? {}),
     }),
+
+  // ---- Onda 12: ICP Dinâmico, Comunicação e Oferta Comercial ----
+  listIcpProfiles: (status?: string) =>
+    req<{ profiles: any[]; total: number }>(`/icp/profiles${status ? `?status=${status}` : ""}`),
+  getActiveIcp: () => req<any>("/icp/active"),
+  getIcpProfile: (id: string) => req<{ profile: any; history: any[] }>(`/icp/profiles/${id}`),
+  createIcpProfile: (body: any) =>
+    req<any>("/icp/profiles", { method: "POST", body: JSON.stringify(body) }),
+  versionIcpProfile: (id: string, body: any) =>
+    req<any>(`/icp/profiles/${id}/version`, { method: "POST", body: JSON.stringify(body) }),
+  submitIcpApproval: (id: string) =>
+    req<{ profile: any; approval: any }>(`/icp/profiles/${id}/submit-approval`, { method: "POST" }),
+  compareIcp: (body: { profileAId: string; profileBId: string; companyId?: string; companyData?: any }) =>
+    req<any>("/icp/compare", { method: "POST", body: JSON.stringify(body) }),
+
+  listCommunicationDrafts: (opportunityId?: string, status?: string) => {
+    const qs = new URLSearchParams();
+    if (opportunityId) qs.set("opportunityId", opportunityId);
+    if (status) qs.set("status", status);
+    return req<{ drafts: any[]; total: number }>(`/communication/drafts${qs.toString() ? `?${qs}` : ""}`);
+  },
+  getCommunicationDraft: (id: string) => req<any>(`/communication/drafts/${id}`),
+  dispatchCommunicationSandbox: (body: {
+    channel?: string;
+    recipient: string;
+    subject?: string;
+    content: string;
+    scenario?: string;
+    draftId?: string;
+    opportunityId?: string;
+    correlationId?: string;
+  }) =>
+    req<{
+      dispatch: any;
+      duplicated: boolean;
+      simulatedPayload: { channel: string; recipientMasked: string; subject?: string; bodyLength: number; headers: Record<string, string> };
+    }>("/communication/sandbox/dispatch", { method: "POST", body: JSON.stringify(body) }),
+  listCommunicationDispatches: (channel?: string, status?: string) => {
+    const qs = new URLSearchParams();
+    if (channel) qs.set("channel", channel);
+    if (status) qs.set("status", status);
+    return req<{ dispatches: any[]; total: number }>(`/communication/dispatches${qs.toString() ? `?${qs}` : ""}`);
+  },
+
+  listOfferCatalog: (category?: string, status?: string) => {
+    const qs = new URLSearchParams();
+    if (category) qs.set("category", category);
+    if (status) qs.set("status", status);
+    return req<{ items: any[]; total: number }>(`/offer-catalog${qs.toString() ? `?${qs}` : ""}`);
+  },
+  createOfferItem: (body: { category: string; title: string; content: string; evidenceUrl?: string }) =>
+    req<any>("/offer-catalog", { method: "POST", body: JSON.stringify(body) }),
+  reviewOfferItem: (id: string, decision: "approved" | "rejected", reason?: string) =>
+    req<any>(`/offer-catalog/${id}/review`, { method: "POST", body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }) }),
+  validateOfferClaims: (claimRefs: string[]) =>
+    req<{ valid: boolean; approvedClaims: any[]; unapprovedClaims: string[]; pendingClaims: string[]; errorMessage?: string }>(
+      "/offer-catalog/validate",
+      { method: "POST", body: JSON.stringify({ claimRefs }) },
+    ),
 };

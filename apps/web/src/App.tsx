@@ -3,6 +3,7 @@ import { useAsync } from "./hooks";
 import { api, setAuthToken, type Approval, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
 import { CaptureView, LoginView } from "./views";
 import { CostsView, PipelineView, ScoutView } from "./scout";
+import { CommunicationView, IcpView, OfferCatalogView } from "./onda12-views";
 
 // Code-split: o escritório 3D (three.js) só carrega ao abrir a aba
 const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ default: m.OfficeView })));
@@ -14,6 +15,9 @@ type Tab =
   | "leads"
   | "scout"
   | "pipeline"
+  | "icp"
+  | "communication"
+  | "offers"
   | "missions"
   | "approvals"
   | "costs"
@@ -27,6 +31,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "scout", label: "Scout" },
   { id: "pipeline", label: "Pipeline" },
+  { id: "icp", label: "ICP Dinâmico" },
+  { id: "communication", label: "Comunicação" },
+  { id: "offers", label: "Oferta Comercial" },
   { id: "agents", label: "Agentes (6)" },
   { id: "leads", label: "Leads" },
   { id: "missions", label: "Missões" },
@@ -756,6 +763,9 @@ export default function App() {
         {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
         {user && tab === "scout" && <ScoutView onOpenPipeline={openPipeline} />}
         {user && tab === "pipeline" && <PipelineView initialOpportunityId={pipelineOppId} />}
+        {user && tab === "icp" && <IcpView />}
+        {user && tab === "communication" && <CommunicationView />}
+        {user && tab === "offers" && <OfferCatalogView />}
         {user && tab === "agents" && <AgentsView />}
         {user && tab === "leads" && <LeadsView />}
         {user && tab === "missions" && <MissionsView />}
@@ -769,7 +779,7 @@ export default function App() {
           </Suspense>
         )}
         <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>
-          Birthub Growth Office · Onda 11 · persistência local · nenhum envio externo ·{" "}
+          Birthub Growth Office · Onda 12 · persistência local · nenhum envio externo ·{" "}
           <span className="badge gold">SIMULAÇÃO</span>
         </footer>
       </main>

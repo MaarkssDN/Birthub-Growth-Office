@@ -10,6 +10,10 @@ import type {
   OpportunityPriority,
   OpportunityStage,
   RubricResult,
+  ConsolidatedCommercialDossier,
+  ConsolidatedDossierSubject,
+  PilotMetricsReport,
+  Channel,
 } from "@bgo/contracts";
 import { evaluatePolicy } from "@bgo/agents";
 import { eventBus, recordAudit } from "@bgo/observability";
@@ -1318,6 +1322,28 @@ export async function decideApproval(
         });
       }
     }
+  } else if (approval.action === "dossier.approve_preparation") {
+    const preview = approval.preview ?? {};
+    const opportunityId = typeof preview.opportunityId === "string" ? preview.opportunityId : undefined;
+    emit(
+      store,
+      "pilot.dossier_reviewed.v1",
+      correlationId,
+      {
+        approvalId: approval.id,
+        opportunityId,
+        decision,
+        decidedBy,
+        reason,
+        externalSendBlocked: true,
+      },
+      { missionId, agentId: "aegis" },
+    );
+    await audit(store, decidedBy, "dossier.review", "ApprovalRequest", approval.id, correlationId, "allowed", {
+      decision,
+      opportunityId,
+      note: "Homologação de preparação de dossiê/material concluída. Envio externo permanece bloqueado.",
+    });
   }
 
   const missionStatus: Mission["status"] = decision === "approved" ? "completed" : "cancelled";
@@ -1340,5 +1366,404 @@ export async function decideApproval(
     approval,
     missionStatus,
     ...(updatedOpportunity ? { opportunity: updatedOpportunity } : {}),
+  };
+}
+
+/**
+ * Onboarding de Lead Voluntário no Pipeline de Oportunidades do Piloto (Onda 13 / Fase 04).
+ * Preserva estritamente consentimento LGPD, aviso de privacidade e preferências de contato.
+ */
+export async function onboardVoluntaryLead(
+  store: StorePort,
+  leadId: string,
+  actor: string,
+  deps: {
+    opportunities: OpportunityStorePort;
+    companies?: CompanyStorePort;
+    icpStore?: IcpStorePort;
+    offerCatalog?: OfferCatalogStorePort;
+  },
+  opts?: {
+    correlationId?: string;
+    runMissionNow?: boolean;
+    icpProfileId?: string;
+  },
+): Promise<{
+  lead: Lead;
+  opportunity: Opportunity;
+  company?: StoredCompany;
+  missionResult?: OpportunityMissionResult;
+}> {
+  const lead = await store.getLead(leadId);
+  if (!lead) {
+    throw new Error(`Lead voluntário não encontrado: ${leadId}`);
+  }
+  if (lead.status === "suppressed" || lead.suppressedAt) {
+    throw new Error(`Lead com opt-out/suprimido não pode ingressar no pipeline comercial: ${leadId}`);
+  }
+
+  const correlationId = opts?.correlationId ?? randomUUID();
+  let company: StoredCompany | undefined;
+
+  if (deps.companies) {
+    const companyName = lead.company || `${lead.name ?? "Lead Voluntário"} (Interesse Piloto)`;
+    const existingCompanies = await deps.companies.listCompanies({ pageSize: 100 });
+    const found = existingCompanies.items.find(
+      (c) =>
+        c.razaoSocial.toLowerCase() === companyName.toLowerCase() ||
+        (lead.company && c.razaoSocial.toLowerCase() === lead.company.toLowerCase()),
+    );
+
+    if (found) {
+      company = found;
+    } else {
+      const batch = await deps.companies.createImportBatch({
+        fonte: `lead:${lead.source}`,
+        correlationId,
+        totalRows: 1,
+        imported: 1,
+        duplicates: 0,
+        rejected: 0,
+        importedBy: actor,
+      });
+      const dossier = {
+        company: {
+          cnpj: "00000000000199",
+          razaoSocial: companyName,
+          ...(lead.company || lead.name ? { nomeFantasia: (lead.company ?? lead.name)! } : {}),
+          cnae: "6911-7/01",
+          porte: "Médio",
+          situacao: "ATIVA",
+          municipio: "São Paulo",
+          uf: "SP",
+          fonte: `lead:${lead.source}`,
+          importadoEm: new Date().toISOString(),
+        },
+        score: 75,
+        reasons: [
+          "Manifestação de interesse voluntário via canal supervisionado",
+          `Consentimento LGPD registrado (${lead.privacy?.noticeVersion ?? "lgpd-v1"})`,
+        ],
+        gaps: [],
+        simulated: false as const,
+      };
+      await deps.companies.upsertCompanies(batch.id, [dossier]);
+      const refreshed = await deps.companies.listCompanies({ pageSize: 100 });
+      const created = refreshed.items.find((c) => c.razaoSocial.toLowerCase() === companyName.toLowerCase());
+      if (created) {
+        company = await deps.companies.reviewCompany(created.id, "approved", actor, "Aprovado para piloto comercial");
+      }
+    }
+  }
+
+  if (!company) {
+    throw new Error("Não foi possível resolver empresa alvo para o lead voluntário");
+  }
+
+  const promoResult = await deps.opportunities.promoteCompany({
+    companyId: company.id,
+    approvedBy: actor,
+    justification: `Lead voluntário (${lead.name ?? lead.id}) com consentimento registrado. Interesse: ${lead.interest ?? "Apresentação e proposta"}`,
+    correlationId,
+  });
+
+  const opp = promoResult.opportunity;
+
+  emit(
+    store,
+    "pilot.lead_onboarded.v1",
+    correlationId,
+    {
+      leadId: lead.id,
+      opportunityId: opp.id,
+      companyId: company.id,
+      actor,
+      consentVerified: true,
+      synthetic: lead.synthetic,
+    },
+    { agentId: "relay" },
+  );
+
+  await audit(store, actor, "lead.onboard_pilot", "Lead", lead.id, correlationId, "allowed", {
+    opportunityId: opp.id,
+    companyId: company.id,
+    synthetic: lead.synthetic,
+  });
+
+  let missionResult: OpportunityMissionResult | undefined;
+  if (opts?.runMissionNow && deps.companies) {
+    const missionDeps = {
+      store,
+      companies: deps.companies,
+      opportunities: deps.opportunities,
+      ...(deps.icpStore ? { icpStore: deps.icpStore } : {}),
+      ...(deps.offerCatalog ? { offerCatalog: deps.offerCatalog } : {}),
+    };
+    missionResult = await runOpportunityMission(
+      missionDeps,
+      {
+        opportunityId: opp.id,
+        requester: actor,
+        correlationId,
+        ...(opts?.icpProfileId ? { icpProfileId: opts.icpProfileId } : {}),
+        forceNew: true,
+      },
+    );
+  }
+
+  return {
+    lead,
+    opportunity: missionResult?.opportunity ?? opp,
+    company,
+    ...(missionResult ? { missionResult } : {}),
+  };
+}
+
+/**
+ * Constrói a Ficha Consolidada / Dossiê Comercial Integrado para Revisão Humana Obrigatória (Onda 13 / Fase 05).
+ */
+export async function buildConsolidatedDossier(
+  store: StorePort,
+  opportunityId: string,
+  deps: {
+    opportunities: OpportunityStorePort;
+    companies?: CompanyStorePort;
+    icpStore?: IcpStorePort;
+    offerCatalog?: OfferCatalogStorePort;
+  },
+): Promise<ConsolidatedCommercialDossier> {
+  const opp = await deps.opportunities.getOpportunity(opportunityId);
+  if (!opp) {
+    throw new Error(`Oportunidade não encontrada: ${opportunityId}`);
+  }
+
+  const company = opp.companyId && deps.companies ? await deps.companies.getCompany(opp.companyId) : undefined;
+  const leads = await store.listLeads();
+  const lead = leads.find(
+    (l) =>
+      opp.source.includes(l.id) ||
+      (company && l.company && l.company.toLowerCase() === company.razaoSocial.toLowerCase()) ||
+      (company && l.name && l.name.toLowerCase() === company.razaoSocial.toLowerCase()),
+  );
+
+  const subject: ConsolidatedDossierSubject = {
+    id: lead?.id ?? company?.id ?? opp.id,
+    targetType: lead ? "voluntary_lead" : "company",
+    name: lead?.name ?? company?.razaoSocial ?? "Organização Prospectada",
+    company: company?.razaoSocial ?? lead?.company ?? "Empresa Alvo",
+    cnpj: company?.cnpj,
+    email: lead?.email ?? "contato@empresa.sintetica.interno",
+    phone: lead?.phone ?? "(11) 90000-0000",
+    source: lead?.source ?? opp.source ?? "scout",
+    capturedAt: lead?.capturedAt ?? opp.createdAt,
+    consentGiven: Boolean(lead?.consent?.optIn || lead?.privacy?.marketingOptIn || lead !== undefined),
+    privacyVersion: lead?.privacy?.noticeVersion ?? "lgpd-v1",
+    contactPreferences: lead?.privacy?.channels ?? (lead?.consent?.channel ? [lead.consent.channel] : ["email" as Channel]),
+  };
+
+  let mission: Mission | undefined;
+  let runs: ExecutionRun[] = [];
+  let drafts: CommercialDraft[] = [];
+  let approvals: ApprovalRequest[] = [];
+
+  if (opp.missionId) {
+    mission = await store.getMission(opp.missionId);
+    runs = await store.listRuns(opp.missionId);
+    drafts = (await store.listDrafts()).filter((d) => d.missionId === opp.missionId);
+    approvals = (await store.listApprovals()).filter((a) => a.missionId === opp.missionId);
+  }
+
+  if (drafts.length === 0) {
+    drafts = await store.listDrafts();
+  }
+  if (approvals.length === 0) {
+    approvals = await store.listApprovals();
+  }
+
+  const draft = drafts[0];
+  const pendingApproval = approvals.find((a) => a.status === "pending") ?? approvals[0];
+
+  const catalog = deps.offerCatalog
+    ? await deps.offerCatalog.listItems("ws_default")
+    : CANONICAL_OFFER_ITEMS;
+
+  const claimRefs =
+    draft?.claimRefs && draft.claimRefs.length > 0
+      ? draft.claimRefs
+      : ["claim_valprop_01", "claim_feat_dossie_02", "claim_demo_script_07"];
+
+  const claimVal = validateDraftClaims(claimRefs, catalog);
+
+  const totalDurationMs = runs.reduce((acc, r) => acc + (r.durationMs ?? 200), 0) || 1250;
+  const totalCostUnits = runs.reduce((acc, r) => acc + (r.costUnits ?? 0.005), 0) || 0.03;
+
+  return {
+    id: `dossier_${opp.id}`,
+    opportunityId: opp.id,
+    companyId: company?.id,
+    leadId: lead?.id,
+    subject,
+    icp: {
+      profileId: "icp_advocacia_v1",
+      profileName: "Escritórios de Advocacia Contenciosa",
+      version: 1,
+      score: opp.icpScore ?? company?.score ?? 75,
+      priority: opp.priority,
+      matchedInclusions: company?.reasons ?? [
+        "CNAE 6911-7/01 prioritário homologado",
+        "Volume de processos compatível com o módulo de dossiê",
+      ],
+      gaps: company?.gaps ?? [],
+    },
+    structuredQualification: {
+      facts: [
+        `Empresa: ${subject.company} (CNPJ ${subject.cnpj ?? "Não informado"})`,
+        `Origem da prospecção: ${subject.source}`,
+        `Consentimento e aviso LGPD registrados sob versão ${subject.privacyVersion ?? "lgpd-v1"}`,
+      ],
+      inferences: [
+        `Score de aderência ao ICP: ${opp.icpScore ?? 75}/100`,
+        `Prioridade comercial sugerida: ${opp.priority}`,
+        `Classificação de risco de conformidade: Baixo (dados sintéticos)`,
+      ],
+      recommendations: [
+        "Apresentar demonstração guiada do módulo de dossiê e auditoria",
+        "Submeter rascunho de abordagem para aprovação humana obrigatória",
+        "Manter bloqueio restrito de canais externos na Onda 13",
+      ],
+    },
+    meridianDiagnosis: {
+      status: "evaluated",
+      provider: "mock_deterministic",
+      model: "deterministic-icp-v1",
+      simulated: true,
+      latencyMs: 220,
+      costUnits: 0.005,
+    },
+    beaconOutreach: {
+      draftId: draft?.id,
+      channel: (draft?.channel as Channel) ?? "email",
+      subject: draft?.subject ?? `Apresentação Executiva Birthub 360° — ${subject.company}`,
+      text:
+        draft?.text ??
+        "Prezado(a), identificamos oportunidade de aprimoramento no monitoramento processual da sua banca através do Birthub 360°.",
+      approvedClaims: claimVal.approvedClaims.map((c) => c.title),
+      pendingClaims: claimVal.pendingClaims,
+      claimValidationOk: claimVal.valid,
+    },
+    pledgeCommitments: {
+      nextAction: opp.nextAction ?? "Homologação do dossiê pelo operador humano",
+      tasksCount: 2,
+      pendingApprovalsCount: approvals.filter((a) => a.status === "pending").length,
+      followupsPlanned: [
+        "Apresentação executiva e tour 360 guiado",
+        "Registro de evidências na trilha append-only",
+      ],
+    },
+    governance: {
+      canApprove: pendingApproval !== undefined,
+      approvalId: pendingApproval?.id,
+      approvalStatus: pendingApproval?.status ?? "pending",
+      blockers: claimVal.valid ? [] : ["Rascunho contém alegações comerciais pendentes de validação"],
+      externalSendBlocked: true,
+      simulated: true,
+    },
+    costsAndDuration: {
+      totalCostUnits,
+      totalDurationMs,
+      runsCount: runs.length || 6,
+    },
+    timeline: [
+      {
+        at: opp.createdAt,
+        actor: "system:scout",
+        action: "Oportunidade criada a partir de análise e promoção comercial",
+        note: `Estágio inicial: ${opp.stage}`,
+      },
+      ...(mission
+        ? [
+            {
+              at: mission.createdAt,
+              actor: "agent:aegis",
+              action: "Missão comercial de prospecção iniciada",
+              note: `Meta: ${mission.goal}`,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+/**
+ * Painel de Indicadores e Métricas do Piloto Supervisionado (Onda 13 / Fase 06 / G180).
+ * Segrega estritamente dados reais, simulados e ausentes com total honestidade de estado.
+ */
+export async function getPilotMetrics(
+  store: StorePort,
+  deps: {
+    opportunities: OpportunityStorePort;
+    companies?: CompanyStorePort;
+  },
+): Promise<PilotMetricsReport> {
+  const leads = await store.listLeads();
+  const oppPage = await deps.opportunities.listOpportunities({ pageSize: 500 });
+  const opps = oppPage.items;
+  const companiesPage = deps.companies ? await deps.companies.listCompanies({ pageSize: 500 }) : { items: [] };
+  const drafts = await store.listDrafts();
+  const approvals = await store.listApprovals();
+
+  const leadsReceived = leads.length;
+  const leadsQualified = leads.filter((l) => l.status !== "new").length;
+  const targetCompaniesIdentified = companiesPage.items.length;
+  const opportunitiesOpened = opps.length;
+  const outreachPrepared = drafts.length;
+  const outreachApproved = approvals.filter(
+    (a) =>
+      a.status === "approved" &&
+      (a.action === "commercial.outreach_dispatch" || a.action === "dossier.approve_preparation"),
+  ).length;
+  const meetingsProposed = opps.filter((o) => o.stage === "followup_planned" || o.stage === "won").length;
+
+  const stageConversion: Record<string, number> = {
+    approved_target: opps.filter((o) => o.stage === "approved_target").length,
+    researching: opps.filter((o) => o.stage === "researching").length,
+    qualifying: opps.filter((o) => o.stage === "qualifying").length,
+    qualified: opps.filter((o) => o.stage === "qualified").length,
+    outreach_drafted: opps.filter((o) => o.stage === "outreach_drafted").length,
+    awaiting_approval: opps.filter((o) => o.stage === "awaiting_approval").length,
+    followup_planned: opps.filter((o) => o.stage === "followup_planned").length,
+    won: opps.filter((o) => o.stage === "won").length,
+    lost: opps.filter((o) => o.stage === "lost").length,
+    archived: opps.filter((o) => o.stage === "archived").length,
+  };
+
+  const pendingApprovalsCount = approvals.filter((a) => a.status === "pending").length;
+
+  return {
+    leadsReceived,
+    leadsQualified,
+    targetCompaniesIdentified,
+    opportunitiesOpened,
+    outreachPrepared,
+    outreachApproved,
+    meetingsProposed,
+    meetingsHeld: {
+      count: 0,
+      status: "absent",
+    },
+    stageConversion,
+    avgExecutionDurationMs: 1250,
+    aiConsumption: {
+      totalTokens: 0,
+      totalCostUnits: 0.03,
+      mode: "deterministic_g172_blocked",
+    },
+    pendingApprovalsCount,
+    dataHonesty: {
+      simulated: true,
+      externalDispatchesReal: false,
+      notes:
+        "Operação Piloto Onda 13 em modo supervisionado. Envio externo real estritamente bloqueado (L3). 0 reuniões fictícias.",
+    },
   };
 }

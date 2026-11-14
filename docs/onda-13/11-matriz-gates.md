@@ -1,0 +1,19 @@
+# Matriz de Gates de Homologação — Onda 13
+## Critérios Formais de Conclusão (G170–G183)
+
+| Gate | Descrição do Requisito | Critério de Aceite | Evidência Técnica / Arquivo de Teste | Status Final |
+|---|---|---|---|---|
+| **G170** | Preservação e Baseline | Zero regressões das Ondas 00–12; worktree e histórico preservados na branch `feat/onda-13`. | `git log`, `pnpm test` executando 140 testes sem falhas. | **HOMOLOGADO** |
+| **G171** | Prontidão Comercial da Oferta | Catálogo canônico avaliado em 9 dimensões, score de 100%, evidências documentais anexadas e alegações não verificadas bloqueadas. | `packages/commercial/src/offer-catalog.ts`, `tests/unit/commercial-readiness.test.ts`. | **HOMOLOGADO** |
+| **G172** | IA: Inferência Real ou Bloqueio Honesto | Teste autenticado com provedor real se credencial presente; ou bloqueio honesto documentado (`BLOQUEADO POR CREDENCIAL`), mantendo qualificação determinística. | Ausência de `BGO_AI_API_KEY` reportada com honestidade; modo determinístico ativo via `meridianDiagnose`. | **BLOQUEADO POR CREDENCIAL** (Honesto) |
+| **G173** | Captação e Lead Voluntário | Lead interessado voluntário com proveniência verificável, consentimento explícito e versão do aviso LGPD. | `packages/commercial/src/orchestrator.ts`, `tests/unit/lead-pilot.test.ts`. | **HOMOLOGADO** |
+| **G174** | Qualificação via ICP Versionado | Qualificação da oportunidade executada com base em versão ativa e aprovada do perfil de ICP. | `packages/commercial/src/icp-engine.ts`, `tests/unit/lead-pilot.test.ts`. | **HOMOLOGADO** |
+| **G175** | Orquestração dos 6 Agentes | Aegis, Relay, Scout, Meridian, Beacon e Pledge participam com correlationId unificado e outbox events. | `packages/commercial/src/orchestrator.ts`, `tests/api/onda13.test.ts`. | **HOMOLOGADO** |
+| **G176** | Diagnóstico Estruturado | `StructuredAgentOutput` separando formalmente Fatos Verificados, Inferências Probabilísticas e Recomendações. | `packages/contracts/src/domain.ts`, `tests/unit/consolidated-dossier.test.ts`. | **HOMOLOGADO** |
+| **G177** | Rascunho com Alegações Estritamente Aprovadas | Rascunho do Beacon contém apenas alegações aprovadas; bloqueia o uso de alegações pendentes de validação. | `packages/commercial/src/offer-catalog.ts`, `tests/unit/commercial-readiness.test.ts`. | **HOMOLOGADO** |
+| **G178** | Central de Aprovações e Revisão Humana Obrigatória | Dossiê de revisão humana obrigatória com aprovar/rejeitar/revisar; segregação de funções (four eyes rule). | `apps/api/src/app.ts`, `packages/commercial/src/orchestrator.ts`. | **HOMOLOGADO** |
+| **G179** | Segurança: 0 Envios Externos Reais | `channel.send` bloqueado pelo policy engine no backend; UI nunca é autoridade; aprovação autoriza apenas preparação de material. | `packages/agents/src/policy.ts`, `tests/policies/policy.test.ts`. | **HOMOLOGADO** |
+| **G180** | Painel de Indicadores com Honestidade de Estado | Painel de métricas do piloto separando dados reais, simulados e ausentes (0 reuniões/receitas fictícias). | `packages/commercial/src/orchestrator.ts`, `tests/unit/consolidated-dossier.test.ts`. | **HOMOLOGADO** |
+| **G181** | Escritório 3D com Estados Visuais Atualizados | Estados visuais dos 6 personagens no Three.js sincronizados com eventos registrados. | `apps/web/src/office/OfficeView.tsx`, capturas de Playwright. | **HOMOLOGADO** |
+| **G182** | Homologação Completa (Testes + Screenshots) | Lint, typecheck, build, Vitest (140 testes) e Playwright E2E com 16 screenshots capturadas em Desktop e Mobile. | `pnpm lint`, `pnpm typecheck`, `pnpm test`, `scripts/pw-onda13.mjs`. | **HOMOLOGADO** |
+| **G183** | Isolamento e Independência do Birthub 360° | Zero dependência operacional do Birthub 360°; sem banco compartilhado, sem paths ou volumes externos. | `tests/isolation/isolation.test.ts` (5 testes de isolamento estrito passando). | **HOMOLOGADO** |

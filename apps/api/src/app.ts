@@ -123,7 +123,24 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   const costs = new CostLedger(ctx.costStore ?? new MemoryCostStore(), ctx.costLimits ?? {});
   // Ledger de custos alimentado pelo gateway — fire-and-forget, nunca quebra inferência.
   aiGateway.usageSink = (rec) => {
-    void costs.record(rec).catch(() => undefined);
+    void costs
+      .record({
+        ...(rec.missionId !== undefined ? { missionId: rec.missionId } : {}),
+        agentId: rec.agentId,
+        provider: rec.provider,
+        model: rec.model,
+        ...(rec.promptKey !== undefined ? { promptKey: rec.promptKey } : {}),
+        ...(rec.promptVersion !== undefined ? { promptVersion: rec.promptVersion } : {}),
+        simulated: rec.simulated,
+        tokensIn: rec.tokensIn,
+        tokensOut: rec.tokensOut,
+        costUnits: rec.costUnits,
+        durationMs: rec.durationMs,
+        status: rec.status,
+        ...(rec.error !== undefined ? { error: rec.error } : {}),
+        ...(rec.correlationId !== undefined ? { correlationId: rec.correlationId } : {}),
+      })
+      .catch(() => undefined);
   };
   const app = Fastify({ logger: false });
   void app.register(cookie);
@@ -1128,20 +1145,76 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   app.get("/api/metrics", async () => metricsSnapshot());
 
   // ---- Status dos provedores de IA (transparência: sempre declara modo) ----
-  app.get("/api/ai/status", async () => ({ ...aiGateway.status(), note: "modo simulated = respostas mock determinísticas, nenhum modelo real consultado" }));
+  app.get("/api/ai/status", async () => ({
+    ...aiGateway.status(),
+    note: "BGO Multi-Provider AI Gateway (Onda 14) — Prioridade local gratuita",
+  }));
 
-  // Diagnóstico comercial do Meridian (Onda 03) — autenticado, auditado,
+  // Onda 14: Registro central e hardware dos provedores
+  app.get("/api/ai/providers", async () => {
+    return aiGateway.router.getRegistry();
+  });
+
+  // Onda 14: Teste controlado de provedor com payload sintético
+  app.post("/api/ai/providers/:id/test", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    const { id } = req.params as { id: string };
+    const res = await aiGateway.router.testProvider(id);
+    await audit(actor.id, "ai.provider_test", "AiProvider", id, randomUUID(), res.ok ? "allowed" : "denied", {
+      provider: res.provider,
+      model: res.model,
+      status: res.status,
+      latencyMs: res.latencyMs,
+      error: res.error ?? null,
+    });
+    return res;
+  });
+
+  // Onda 14: Reordenação da prioridade de provedores
+  app.post("/api/ai/providers/priority", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    if (actor.role === "auditor") {
+      return reply.code(403).send({ error: "role auditor não pode alterar prioridade de IA" });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const priority = Array.isArray(body.priority)
+      ? body.priority.filter((p): p is string => typeof p === "string")
+      : [];
+    if (priority.length === 0) {
+      return reply.code(400).send({ error: "lista de prioridade inválida" });
+    }
+    aiGateway.router.setPriority(priority);
+    const registry = await aiGateway.router.getRegistry();
+    await audit(actor.id, "ai.priority_update", "AiRouter", "priority", randomUUID(), "allowed", {
+      priority,
+    });
+    return registry;
+  });
+
+  // Onda 14: Histórico de inferências e auditoria
+  app.get("/api/ai/history", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    return {
+      history: aiGateway.router.getHistory(),
+      total: aiGateway.router.getHistory().length,
+    };
+  });
+
+  // Diagnóstico comercial do Meridian (Onda 03 + Onda 14 Multiprovedor) — autenticado, auditado,
   // nunca dispara ação externa; saída passa pela guarda anti-promoções.
   app.post("/api/ai/meridian-diagnose", async (req, reply) => {
     const actor = await requireAuth(req, reply);
     if (!actor) return;
-    if (!limiter.hit(`ai-diagnose:${actor.id}`, 10, 60 * 60 * 1000)) {
+    if (!limiter.hit(`ai-diagnose:${actor.id}`, 20, 60 * 60 * 1000)) {
       return reply.code(429).send({ error: "limite de diagnósticos por hora atingido" });
     }
     const body = (req.body ?? {}) as Record<string, unknown>;
     const correlationId = randomUUID();
     const leadId = typeof body.leadId === "string" ? body.leadId : undefined;
-    let leadData: Record<string, unknown> = { ...(body.lead as Record<string, unknown> | undefined ?? {}) };
+    let leadData: Record<string, unknown> = { ...((body.lead as Record<string, unknown> | undefined) ?? {}) };
     if (leadId) {
       const lead = await store.getLead(leadId);
       if (!lead) return reply.code(404).send({ error: "lead não encontrado" });
@@ -1159,12 +1232,19 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       correlationId,
       ...(typeof body.icp === "object" && body.icp !== null ? { icp: body.icp } : { icp: ICP_HYPOTHESIS }),
       approvedClaims: approvedClaimIds(),
+      ...(typeof body.preferredProvider === "string" ? { preferredProvider: body.preferredProvider } : {}),
+      ...(typeof body.preferredModel === "string" ? { preferredModel: body.preferredModel } : {}),
+      ...(typeof body.forceReal === "boolean" ? { forceReal: body.forceReal } : {}),
     });
     await audit(actor.id, "ai.meridian_diagnose", "Lead", leadId ?? "adhoc", correlationId, result.ok ? "allowed" : "denied", {
-      simulated: result.simulated, provider: result.provider, model: result.model,
-      promptVersion: result.promptVersion, rejectedReason: result.rejectedReason ?? null,
+      simulated: result.simulated,
+      provider: result.provider,
+      model: result.model,
+      promptVersion: result.promptVersion,
+      rejectedReason: result.rejectedReason ?? null,
+      isLocal: Boolean(result.isLocal),
     });
-    return { ...result, correlationId, simulated: true };
+    return { ...result, correlationId, simulated: result.simulated };
   });
 
   // ---- Scout: central de prospecção (Onda 10 + Onda 11) ----

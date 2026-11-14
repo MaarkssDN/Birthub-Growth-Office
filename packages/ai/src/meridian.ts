@@ -27,6 +27,10 @@ export interface LeadDiagnosisInput {
   score?: number;
   rubricVersion?: string;
   gaps?: string[];
+  preferredProvider?: string;
+  preferredModel?: string;
+  forceReal?: boolean;
+  synthetic?: boolean;
 }
 
 export interface CommercialDiagnosis {
@@ -45,6 +49,8 @@ export interface CommercialDiagnosis {
   latencyMs?: number;
   tokensIn?: number;
   tokensOut?: number;
+  costUnits?: number;
+  isLocal?: boolean;
 }
 
 /** Remove dados de contato/PII desnecessária antes de enviar ao modelo. */
@@ -97,6 +103,9 @@ export async function meridianDiagnose(
     maxTokens: 800,
     ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
     ...(input.correlationId !== undefined ? { correlationId: input.correlationId } : {}),
+    ...(input.preferredProvider !== undefined ? { preferredProvider: input.preferredProvider } : {}),
+    ...(input.preferredModel !== undefined ? { preferredModel: input.preferredModel } : {}),
+    ...(input.forceReal !== undefined ? { forceReal: input.forceReal } : {}),
   });
 
   const base: CommercialDiagnosis = {
@@ -109,6 +118,8 @@ export async function meridianDiagnose(
     ...(res.latencyMs !== undefined ? { latencyMs: res.latencyMs } : {}),
     ...(res.tokensIn !== undefined ? { tokensIn: res.tokensIn } : {}),
     ...(res.tokensOut !== undefined ? { tokensOut: res.tokensOut } : {}),
+    ...(res.costUnits !== undefined ? { costUnits: res.costUnits } : {}),
+    ...(res.isLocal !== undefined ? { isLocal: res.isLocal } : {}),
   };
   if (!res.ok || !res.output) {
     return { ...base, rejectedReason: res.error ?? "sem saída do provedor" };

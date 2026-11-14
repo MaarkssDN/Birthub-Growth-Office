@@ -97,6 +97,33 @@ export type OpportunityStage = z.infer<typeof OpportunityStage>;
 export const OpportunityPriority = z.enum(["low", "normal", "high", "critical"]);
 export type OpportunityPriority = z.infer<typeof OpportunityPriority>;
 
+// ---------- Onda 12: ICP Dinâmico, Comunicação e Oferta Comercial ----------
+
+export const IcpProfileStatus = z.enum(["draft", "pending_approval", "approved", "archived"]);
+export type IcpProfileStatus = z.infer<typeof IcpProfileStatus>;
+
+export const CommunicationDispatchStatus = z.enum([
+  "sent_simulated",
+  "error_simulated",
+  "blocked_suppressed",
+  "blocked_unauthorized",
+]);
+export type CommunicationDispatchStatus = z.infer<typeof CommunicationDispatchStatus>;
+
+export const OfferCategory = z.enum([
+  "value_prop",
+  "feature",
+  "differentiator",
+  "target_audience",
+  "commercial_material",
+  "contract_term",
+  "objection_response",
+]);
+export type OfferCategory = z.infer<typeof OfferCategory>;
+
+export const OfferItemStatus = z.enum(["approved", "pending_validation", "rejected"]);
+export type OfferItemStatus = z.infer<typeof OfferItemStatus>;
+
 /** Estados visuais do contrato de eventos do escritório (Onda 02/Fase 06). */
 export const VISUAL_STATES = ["idle","listening","processing","speaking","success","error"] as const;
 export type VisualState = (typeof VISUAL_STATES)[number];

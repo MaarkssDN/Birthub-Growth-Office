@@ -1,5 +1,18 @@
 import { z } from "zod";
-import { LeadStatus, Channel, ClaimStatus, ApprovalStatus, DraftStatus, TaskStatus, OpportunityStage, OpportunityPriority } from "./enums";
+import {
+  LeadStatus,
+  Channel,
+  ClaimStatus,
+  ApprovalStatus,
+  DraftStatus,
+  TaskStatus,
+  OpportunityStage,
+  OpportunityPriority,
+  IcpProfileStatus,
+  CommunicationDispatchStatus,
+  OfferCategory,
+  OfferItemStatus,
+} from "./enums";
 
 export const Uuid = z.string().min(8);
 export const IsoDate = z.string();
@@ -244,9 +257,15 @@ export const CommercialDraft = z.object({
   recipientPolicy: z.string(),
   template: z.string().optional(),
   claimRefs: z.array(z.string()),
+  subject: z.string().optional(),
   text: z.string(),
+  version: z.number().int().default(1),
   status: DraftStatus,
   simulated: z.boolean(),
+  scheduledFor: IsoDate.optional(),
+  rejectionReason: z.string().optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: IsoDate.optional(),
   createdBy: z.string(),
   createdAt: IsoDate,
   updatedAt: IsoDate,
@@ -272,6 +291,8 @@ export const Opportunity = z.object({
   lostReason: z.string().optional(),
   lastActivityAt: IsoDate,
   ownerId: z.string().optional(),
+  icpProfileId: z.string().optional(),
+  icpVersion: z.number().int().default(1),
   createdAt: IsoDate,
   updatedAt: IsoDate,
 });
@@ -309,3 +330,120 @@ export const AgentVisualFlags = z.object({
   simulated: z.boolean(),
 });
 export type AgentVisualFlags = z.infer<typeof AgentVisualFlags>;
+
+// ---------- Onda 12: ICP Dinâmico, Comunicação Supervisionada e Oferta Comercial ----------
+
+export const IcpInclusionRule = z.object({
+  id: z.string(),
+  name: z.string(),
+  weight: z.number().min(0).max(100),
+  condition: z.string(), // ex: "cnae_in_target", "size_in_target", "active_status", "capital_min"
+});
+export type IcpInclusionRule = z.infer<typeof IcpInclusionRule>;
+
+export const IcpExclusionRule = z.object({
+  id: z.string(),
+  name: z.string(),
+  condition: z.string(), // ex: "status_inactive", "mei_porte", "prohibited_sector"
+  reason: z.string(),
+});
+export type IcpExclusionRule = z.infer<typeof IcpExclusionRule>;
+
+export const IcpWeights = z.object({
+  cnae: z.number().min(0).max(100).default(30),
+  size: z.number().min(0).max(100).default(25),
+  location: z.number().min(0).max(100).default(20),
+  operation: z.number().min(0).max(100).default(25),
+});
+export type IcpWeights = z.infer<typeof IcpWeights>;
+
+export const CommercialIcpProfile = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  name: z.string().min(2).max(150),
+  version: z.number().int().min(1),
+  status: IcpProfileStatus,
+  description: z.string().optional(),
+  targetSegments: z.array(z.string()),
+  targetCnaes: z.array(z.string()),
+  targetSizes: z.array(z.string()),
+  targetUfs: z.array(z.string()),
+  inclusions: z.array(IcpInclusionRule),
+  exclusions: z.array(IcpExclusionRule),
+  weights: IcpWeights,
+  changeReason: z.string().optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: IsoDate.optional(),
+  createdBy: z.string(),
+  createdAt: IsoDate,
+  updatedAt: IsoDate,
+});
+export type CommercialIcpProfile = z.infer<typeof CommercialIcpProfile>;
+
+export const CommercialIcpHistory = z.object({
+  id: z.string(),
+  profileId: z.string(),
+  action: z.string(),
+  actor: z.string(),
+  reason: z.string().optional(),
+  details: z.record(z.unknown()).optional(),
+  occurredAt: IsoDate,
+});
+export type CommercialIcpHistory = z.infer<typeof CommercialIcpHistory>;
+
+export const CommercialDraftHistory = z.object({
+  id: z.string(),
+  draftId: z.string(),
+  version: z.number().int(),
+  subject: z.string().optional(),
+  text: z.string(),
+  channel: Channel,
+  claimRefs: z.array(z.string()),
+  actor: z.string(),
+  action: z.string(),
+  reason: z.string().optional(),
+  occurredAt: IsoDate,
+});
+export type CommercialDraftHistory = z.infer<typeof CommercialDraftHistory>;
+
+export const CommunicationDispatch = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  draftId: z.string().optional(),
+  opportunityId: z.string().optional(),
+  channel: Channel,
+  recipient: z.string(),
+  subject: z.string().optional(),
+  content: z.string(),
+  status: CommunicationDispatchStatus,
+  simulated: z.boolean().default(true),
+  errorReason: z.string().optional(),
+  dispatchedBy: z.string(),
+  correlationId: z.string(),
+  createdAt: IsoDate,
+});
+export type CommunicationDispatch = z.infer<typeof CommunicationDispatch>;
+
+export const CommercialOfferItem = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  category: OfferCategory,
+  title: z.string().min(2).max(200),
+  content: z.string().min(5),
+  evidenceUrl: z.string().optional(),
+  status: OfferItemStatus,
+  version: z.string().default("offer-v1"),
+  approvedBy: z.string().optional(),
+  approvedAt: IsoDate.optional(),
+  createdBy: z.string(),
+  createdAt: IsoDate,
+  updatedAt: IsoDate,
+});
+export type CommercialOfferItem = z.infer<typeof CommercialOfferItem>;
+
+export const StructuredAgentOutput = z.object({
+  facts: z.array(z.string()),
+  inferences: z.array(z.string()),
+  recommendations: z.array(z.string()),
+});
+export type StructuredAgentOutput = z.infer<typeof StructuredAgentOutput>;

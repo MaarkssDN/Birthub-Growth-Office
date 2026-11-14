@@ -25,6 +25,17 @@ export const EventType = z.enum([
   "opportunity.stage_changed.v1",
   "opportunity.priority_changed.v1",
   "opportunity.mission_started.v1",
+  // Onda 12: ICP Dinâmico, Comunicação e Oferta
+  "icp.created.v1",
+  "icp.approval_requested.v1",
+  "icp.approved.v1",
+  "icp.archived.v1",
+  "communication.draft_created.v1",
+  "communication.draft_updated.v1",
+  "communication.draft_approved.v1",
+  "communication.dispatched_simulated.v1",
+  "offer_catalog.item_added.v1",
+  "offer_catalog.item_approved.v1",
 ]);
 export type EventType = z.infer<typeof EventType>;
 
@@ -176,6 +187,64 @@ export const EventPayloads = {
     companyId: z.string(),
     missionId: z.string(),
     requester: z.string(),
+  }),
+  // Onda 12: ICP Dinâmico, Comunicação Supervisionada e Oferta Comercial
+  "icp.created.v1": z.object({
+    profileId: z.string(),
+    name: z.string(),
+    version: z.number().int(),
+    createdBy: z.string(),
+  }),
+  "icp.approval_requested.v1": z.object({
+    profileId: z.string(),
+    version: z.number().int(),
+    requestedBy: z.string(),
+  }),
+  "icp.approved.v1": z.object({
+    profileId: z.string(),
+    version: z.number().int(),
+    approvedBy: z.string(),
+  }),
+  "icp.archived.v1": z.object({
+    profileId: z.string(),
+    version: z.number().int(),
+    actor: z.string(),
+  }),
+  "communication.draft_created.v1": z.object({
+    draftId: z.string(),
+    opportunityId: z.string().optional(),
+    channel: z.string(),
+    version: z.number().int(),
+    createdBy: z.string(),
+  }),
+  "communication.draft_updated.v1": z.object({
+    draftId: z.string(),
+    version: z.number().int(),
+    actor: z.string(),
+  }),
+  "communication.draft_approved.v1": z.object({
+    draftId: z.string(),
+    version: z.number().int(),
+    approvedBy: z.string(),
+  }),
+  "communication.dispatched_simulated.v1": z.object({
+    dispatchId: z.string(),
+    channel: z.string(),
+    recipient: z.string(),
+    status: z.string(),
+    simulated: z.literal(true),
+    dispatchedBy: z.string(),
+  }),
+  "offer_catalog.item_added.v1": z.object({
+    itemId: z.string(),
+    category: z.string(),
+    title: z.string(),
+    createdBy: z.string(),
+  }),
+  "offer_catalog.item_approved.v1": z.object({
+    itemId: z.string(),
+    category: z.string(),
+    approvedBy: z.string(),
   }),
 } as const;
 

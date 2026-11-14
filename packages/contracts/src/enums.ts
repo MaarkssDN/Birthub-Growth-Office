@@ -116,6 +116,8 @@ export const OfferCategory = z.enum([
   "differentiator",
   "target_audience",
   "commercial_material",
+  "demo_script",
+  "pricing_condition",
   "contract_term",
   "objection_response",
 ]);

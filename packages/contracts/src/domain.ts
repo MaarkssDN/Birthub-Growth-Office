@@ -447,3 +447,143 @@ export const StructuredAgentOutput = z.object({
   recommendations: z.array(z.string()),
 });
 export type StructuredAgentOutput = z.infer<typeof StructuredAgentOutput>;
+
+// ---------- Onda 13: Prontidão Comercial, Ficha Consolidada e Métricas do Piloto ----------
+
+export const CommercialReadinessItem = z.object({
+  id: z.string(),
+  category: OfferCategory,
+  title: z.string(),
+  status: OfferItemStatus,
+  evidenceUrl: z.string().optional(),
+  hasVerifiableEvidence: z.boolean(),
+});
+export type CommercialReadinessItem = z.infer<typeof CommercialReadinessItem>;
+
+export const CommercialReadinessCategoryStatus = z.object({
+  category: OfferCategory,
+  label: z.string(),
+  ready: z.boolean(),
+  approvedCount: z.number().int().min(0),
+  pendingCount: z.number().int().min(0),
+  items: z.array(CommercialReadinessItem),
+});
+export type CommercialReadinessCategoryStatus = z.infer<typeof CommercialReadinessCategoryStatus>;
+
+export const CommercialReadinessReport = z.object({
+  workspaceId: z.string(),
+  readyForOutreach: z.boolean(),
+  readinessScore: z.number().min(0).max(100),
+  categories: z.array(CommercialReadinessCategoryStatus),
+  pendingClaims: z.array(z.string()),
+  evaluatedAt: IsoDate,
+  blockingReasons: z.array(z.string()),
+});
+export type CommercialReadinessReport = z.infer<typeof CommercialReadinessReport>;
+
+export const ConsolidatedDossierSubject = z.object({
+  id: z.string(),
+  targetType: z.enum(["company", "voluntary_lead"]),
+  name: z.string(),
+  company: z.string(),
+  cnpj: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  source: z.string(),
+  capturedAt: IsoDate,
+  consentGiven: z.boolean(),
+  privacyVersion: z.string().optional(),
+  contactPreferences: z.array(Channel).optional(),
+});
+export type ConsolidatedDossierSubject = z.infer<typeof ConsolidatedDossierSubject>;
+
+export const ConsolidatedCommercialDossier = z.object({
+  id: z.string(),
+  opportunityId: z.string(),
+  companyId: z.string().optional(),
+  leadId: z.string().optional(),
+  subject: ConsolidatedDossierSubject,
+  icp: z.object({
+    profileId: z.string(),
+    profileName: z.string(),
+    version: z.number().int(),
+    score: z.number().min(0).max(100),
+    priority: OpportunityPriority,
+    matchedInclusions: z.array(z.string()),
+    gaps: z.array(z.string()),
+  }),
+  structuredQualification: StructuredAgentOutput,
+  meridianDiagnosis: z.object({
+    status: z.string(),
+    provider: z.string(),
+    model: z.string(),
+    simulated: z.boolean(),
+    latencyMs: z.number().optional(),
+    costUnits: z.number().optional(),
+  }),
+  beaconOutreach: z.object({
+    draftId: z.string().optional(),
+    channel: Channel,
+    subject: z.string().optional(),
+    text: z.string().optional(),
+    approvedClaims: z.array(z.string()),
+    pendingClaims: z.array(z.string()),
+    claimValidationOk: z.boolean(),
+  }),
+  pledgeCommitments: z.object({
+    nextAction: z.string(),
+    tasksCount: z.number().int(),
+    pendingApprovalsCount: z.number().int(),
+    followupsPlanned: z.array(z.string()),
+  }),
+  governance: z.object({
+    canApprove: z.boolean(),
+    approvalId: z.string().optional(),
+    approvalStatus: ApprovalStatus.optional(),
+    blockers: z.array(z.string()),
+    externalSendBlocked: z.literal(true),
+    simulated: z.boolean(),
+  }),
+  costsAndDuration: z.object({
+    totalCostUnits: z.number().min(0),
+    totalDurationMs: z.number().min(0),
+    runsCount: z.number().int().min(0),
+  }),
+  timeline: z.array(
+    z.object({
+      at: IsoDate,
+      actor: z.string(),
+      action: z.string(),
+      note: z.string().optional(),
+    }),
+  ),
+});
+export type ConsolidatedCommercialDossier = z.infer<typeof ConsolidatedCommercialDossier>;
+
+export const PilotMetricsReport = z.object({
+  leadsReceived: z.number().int().min(0),
+  leadsQualified: z.number().int().min(0),
+  targetCompaniesIdentified: z.number().int().min(0),
+  opportunitiesOpened: z.number().int().min(0),
+  outreachPrepared: z.number().int().min(0),
+  outreachApproved: z.number().int().min(0),
+  meetingsProposed: z.number().int().min(0),
+  meetingsHeld: z.object({
+    count: z.number().int().min(0),
+    status: z.enum(["absent", "simulated", "real"]),
+  }),
+  stageConversion: z.record(z.number()),
+  avgExecutionDurationMs: z.number().min(0),
+  aiConsumption: z.object({
+    totalTokens: z.number().int().min(0),
+    totalCostUnits: z.number().min(0),
+    mode: z.string(),
+  }),
+  pendingApprovalsCount: z.number().int().min(0),
+  dataHonesty: z.object({
+    simulated: z.boolean(),
+    externalDispatchesReal: z.literal(false),
+    notes: z.string(),
+  }),
+});
+export type PilotMetricsReport = z.infer<typeof PilotMetricsReport>;

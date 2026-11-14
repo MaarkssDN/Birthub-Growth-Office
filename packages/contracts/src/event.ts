@@ -36,6 +36,10 @@ export const EventType = z.enum([
   "communication.dispatched_simulated.v1",
   "offer_catalog.item_added.v1",
   "offer_catalog.item_approved.v1",
+  // Onda 13: Primeiro Piloto Comercial Supervisionado
+  "pilot.lead_onboarded.v1",
+  "pilot.dossier_reviewed.v1",
+  "commercial_readiness.evaluated.v1",
 ]);
 export type EventType = z.infer<typeof EventType>;
 
@@ -245,6 +249,21 @@ export const EventPayloads = {
     itemId: z.string(),
     category: z.string(),
     approvedBy: z.string(),
+  }),
+  "pilot.lead_onboarded.v1": z.object({
+    leadId: z.string(),
+    opportunityId: z.string(),
+    actor: z.string(),
+  }),
+  "pilot.dossier_reviewed.v1": z.object({
+    opportunityId: z.string(),
+    decision: z.string(),
+    reviewedBy: z.string(),
+  }),
+  "commercial_readiness.evaluated.v1": z.object({
+    readyForOutreach: z.boolean(),
+    readinessScore: z.number(),
+    evaluatedBy: z.string(),
   }),
 } as const;
 

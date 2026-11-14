@@ -43,6 +43,10 @@ import {
   dispatchSandboxMessage,
   validateDraftClaims,
   CANONICAL_OFFER_ITEMS,
+  evaluateCommercialReadiness,
+  buildConsolidatedDossier,
+  onboardVoluntaryLead,
+  getPilotMetrics,
   type IcpStorePort,
   type CommunicationSandboxStorePort,
   type OfferCatalogStorePort,
@@ -441,6 +445,9 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     "icp.activate",
     "offer.approve",
     "communication.draft_review",
+    // Onda 13: Piloto Supervisionado e Ficha Consolidada
+    "dossier.approve_preparation",
+    "commercial.outreach_dispatch",
   ]);
 
   app.post("/api/approvals/request", async (req, reply) => {
@@ -949,6 +956,125 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     const items = await offerCatalog.listItems(store.workspace.id);
     const result = validateDraftClaims(body.claimRefs, items);
     return result;
+  });
+
+  // =========================================================================
+  // Onda 13: Prontidão Comercial, Piloto Supervisionado e Ficha Consolidada
+  // =========================================================================
+
+  app.get("/api/commercial/readiness", async (req) => {
+    const items = await offerCatalog.listItems(store.workspace.id);
+    const report = evaluateCommercialReadiness(items, store.workspace.id);
+    return report;
+  });
+
+  app.get("/api/commercial/dossier/:opportunityId", async (req, reply) => {
+    const oppId = (req.params as { opportunityId: string }).opportunityId;
+    try {
+      const dossier = await buildConsolidatedDossier(store, oppId, {
+        opportunities,
+        companies,
+        icpStore,
+        offerCatalog,
+      });
+      return dossier;
+    } catch (e) {
+      return reply.code(404).send({ error: (e as Error).message });
+    }
+  });
+
+  app.post("/api/leads/:id/onboard-opportunity", async (req, reply) => {
+    const act = actor(req);
+    const id = (req.params as { id: string }).id;
+    const body = (req.body ?? {}) as {
+      runMissionNow?: boolean;
+      icpProfileId?: string;
+    };
+    try {
+      const result = await onboardVoluntaryLead(
+        store,
+        id,
+        act.id,
+        {
+          opportunities,
+          companies,
+          icpStore,
+          offerCatalog,
+        },
+        {
+          ...(body.runMissionNow ? { runMissionNow: true } : {}),
+          ...(typeof body.icpProfileId === "string" ? { icpProfileId: body.icpProfileId } : {}),
+        },
+      );
+      return reply.code(201).send(result);
+    } catch (e) {
+      return reply.code(400).send({ error: (e as Error).message });
+    }
+  });
+
+  app.get("/api/metrics/pilot", async () => {
+    const metrics = await getPilotMetrics(store, {
+      opportunities,
+      companies,
+    });
+    return metrics;
+  });
+
+  app.post("/api/opportunities/:id/dossier/review", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "approver") {
+      return reply.code(403).send({ error: "role insuficiente para homologar preparação de dossiê" });
+    }
+    const id = (req.params as { id: string }).id;
+    const body = (req.body ?? {}) as { decision?: "approved" | "rejected"; reason?: string };
+    if (body.decision !== "approved" && body.decision !== "rejected") {
+      return reply.code(400).send({ error: "decision deve ser 'approved' ou 'rejected'" });
+    }
+    const opp = await opportunities.getOpportunity(id);
+    if (!opp) return reply.code(404).send({ error: "oportunidade não encontrada" });
+
+    // Encontra a aprovação correspondente da oportunidade ou missão
+    const pendingApprovals = await store.listApprovals("pending");
+    let approval = pendingApprovals.find(
+      (a) =>
+        (a.preview as Record<string, unknown>)?.opportunityId === id ||
+        (opp.missionId && a.missionId === opp.missionId),
+    );
+
+    const correlationId = randomUUID();
+    if (!approval) {
+      approval = await store.createApproval({
+        missionId: opp.missionId ?? "mission_dossier_review",
+        requestedBy: "agent:pledge",
+        approverRole: "approver",
+        action: "dossier.approve_preparation",
+        scope: `opportunity:${opp.id}`,
+        reason: `Homologação humana de preparação de dossiê da oportunidade ${opp.id}`,
+        correlationId,
+        preview: {
+          opportunityId: opp.id,
+          stage: opp.stage,
+        },
+      });
+    }
+
+    const decisionResult = await decideApproval(
+      store,
+      approval.id,
+      body.decision,
+      act.id,
+      body.reason ?? (body.decision === "approved" ? "Preparação de dossiê comercial homologada" : "Preparação rejeitada"),
+      { opportunities, companies, icpStore, offerCatalog },
+    );
+
+    return {
+      success: true,
+      decision: body.decision,
+      approval: decisionResult.approval,
+      opportunity: decisionResult.opportunity ?? opp,
+      externalSendBlocked: true,
+      note: "Material comercial homologado para preparação humana. Disparo externo permanece bloqueado pela política de governança.",
+    };
   });
 
   // ---- Auditoria / Eventos / Métricas ----

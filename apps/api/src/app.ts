@@ -9,6 +9,12 @@ import {
   type LeadStatus,
   type OpportunityPriority,
   type OpportunityStage,
+  type Channel,
+  type CommercialIcpProfile,
+  type CommunicationDispatch,
+  type CommercialOfferItem,
+  type OfferCategory,
+  type OfferItemStatus,
 } from "@bgo/contracts";
 import { activeAgents, getPersona, layerCounts, listAgents, loadCatalog, evaluatePolicy } from "@bgo/agents";
 import {
@@ -28,6 +34,18 @@ import {
   MemoryCompanyStore,
   MemoryCostStore,
   MemoryOpportunityStore,
+  MemoryIcpStore,
+  MemoryCommunicationSandboxStore,
+  MemoryOfferCatalogStore,
+  DEFAULT_COMMERCIAL_ICP_PROFILE,
+  evaluateCompanyIcp,
+  compareIcpEvaluation,
+  dispatchSandboxMessage,
+  validateDraftClaims,
+  CANONICAL_OFFER_ITEMS,
+  type IcpStorePort,
+  type CommunicationSandboxStorePort,
+  type OfferCatalogStorePort,
   OPPORTUNITY_STAGE_LABELS,
   OPPORTUNITY_TRANSITIONS,
   assertOpportunityTransition,
@@ -60,6 +78,10 @@ export interface AppContext {
   costLimits?: { dailyUnits?: number; monthlyUnits?: number };
   /** Onda 11 — store de oportunidades comerciais (default: memória). */
   opportunities?: OpportunityStorePort;
+  /** Onda 12 — ICP dinâmico, sandbox de comunicação e catálogo de oferta */
+  icpStore?: IcpStorePort;
+  sandboxStore?: CommunicationSandboxStorePort;
+  offerCatalog?: OfferCatalogStorePort;
 }
 
 interface Actor {
@@ -91,6 +113,9 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   const devAuth = ctx.devAuth === true;
   const companies = ctx.companies ?? new MemoryCompanyStore();
   const opportunities = ctx.opportunities ?? new MemoryOpportunityStore(companies, store.workspace.id);
+  const icpStore = ctx.icpStore ?? new MemoryIcpStore();
+  const sandboxStore = ctx.sandboxStore ?? new MemoryCommunicationSandboxStore();
+  const offerCatalog = ctx.offerCatalog ?? new MemoryOfferCatalogStore();
   const costs = new CostLedger(ctx.costStore ?? new MemoryCostStore(), ctx.costLimits ?? {});
   // Ledger de custos alimentado pelo gateway — fire-and-forget, nunca quebra inferência.
   aiGateway.usageSink = (rec) => {
@@ -412,6 +437,10 @@ export function buildApp(ctx: AppContext): FastifyInstance {
     "external.activity_request",
     "opportunity.priority_override",
     "budget.limit_override",
+    // Onda 12: ICP Dinâmico, Comunicação e Oferta
+    "icp.activate",
+    "offer.approve",
+    "communication.draft_review",
   ]);
 
   app.post("/api/approvals/request", async (req, reply) => {
@@ -474,7 +503,32 @@ export function buildApp(ctx: AppContext): FastifyInstance {
         parsed.data.decision,
         act.id,
         parsed.data.reason,
-        { opportunities, companies },
+        { opportunities, companies, icpStore, offerCatalog },
+      );
+      return result;
+    } catch (e) {
+      return reply.code(409).send({ error: (e as Error).message });
+    }
+  });
+
+  app.post("/api/approvals/:id/decide", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "approver") {
+      return reply.code(403).send({ error: "role insuficiente para decidir aprovação" });
+    }
+    const parsed = ApprovalDecisionInput.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    if (parsed.data.decision === "rejected" && !parsed.data.reason) {
+      return reply.code(400).send({ error: "rejeição exige motivo" });
+    }
+    try {
+      const result = await decideApproval(
+        store,
+        (req.params as { id: string }).id,
+        parsed.data.decision,
+        act.id,
+        parsed.data.reason,
+        { opportunities, companies, icpStore, offerCatalog },
       );
       return result;
     } catch (e) {
@@ -485,9 +539,417 @@ export function buildApp(ctx: AppContext): FastifyInstance {
   // ---- Drafts ----
   app.get("/api/drafts", async () => store.listDrafts());
 
-  // ---- Oferta / ICP ----
+  // ---- Oferta / ICP (Legado preservado) ----
   app.get("/api/offer", async () => ({ version: "offer-v1", claims: OFFER_CLAIMS }));
   app.get("/api/icp", async () => ICP_HYPOTHESIS);
+
+  // =========================================================================
+  // Onda 12 / Fase 02: ICP Comercial Dinâmico e Versionado
+  // =========================================================================
+  app.get("/api/icp/profiles", async (req) => {
+    const q = req.query as { status?: string };
+    const list = await icpStore.listProfiles(store.workspace.id, q.status);
+    return { profiles: list, total: list.length };
+  });
+
+  app.get("/api/icp/active", async () => {
+    const active = await icpStore.getActiveProfile(store.workspace.id);
+    return active ?? DEFAULT_COMMERCIAL_ICP_PROFILE;
+  });
+
+  app.get("/api/icp/profiles/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const profile = await icpStore.getProfile(id);
+    if (!profile) return reply.code(404).send({ error: "perfil ICP não encontrado" });
+    const history = await icpStore.listHistory(id);
+    return { profile, history };
+  });
+
+  app.post("/api/icp/profiles", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator") {
+      return reply.code(403).send({ error: "role insuficiente para criar perfil de ICP" });
+    }
+    const body = (req.body ?? {}) as Partial<CommercialIcpProfile>;
+    if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
+      return reply.code(400).send({ error: "nome do perfil ICP é obrigatório" });
+    }
+    const correlationId = randomUUID();
+    const id = `icp_${randomUUID()}`;
+    const profile: CommercialIcpProfile = {
+      id,
+      workspaceId: store.workspace.id,
+      name: body.name.trim(),
+      version: 1,
+      status: "draft",
+      ...(body.description ? { description: body.description } : {}),
+      targetSegments: Array.isArray(body.targetSegments) ? body.targetSegments : [],
+      targetCnaes: Array.isArray(body.targetCnaes) ? body.targetCnaes : [],
+      targetSizes: Array.isArray(body.targetSizes) ? body.targetSizes : ["EPP", "MEDIO", "GRANDE"],
+      targetUfs: Array.isArray(body.targetUfs) ? body.targetUfs : ["SP", "RJ", "MG", "PR", "SC", "RS"],
+      inclusions: Array.isArray(body.inclusions) ? body.inclusions : DEFAULT_COMMERCIAL_ICP_PROFILE.inclusions,
+      exclusions: Array.isArray(body.exclusions) ? body.exclusions : DEFAULT_COMMERCIAL_ICP_PROFILE.exclusions,
+      weights: body.weights ?? DEFAULT_COMMERCIAL_ICP_PROFILE.weights,
+      changeReason: body.changeReason ?? "Criação de novo perfil de ICP comercial",
+      createdBy: act.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const created = await icpStore.createProfile(profile);
+    await audit(act.id, "icp.create", "CommercialIcpProfile", created.id, correlationId, "allowed", {
+      name: created.name,
+      version: created.version,
+    });
+    publish("icp.created.v1", correlationId, {
+      profileId: created.id,
+      name: created.name,
+      version: created.version,
+      createdBy: act.id,
+    });
+    return reply.code(201).send(created);
+  });
+
+  app.post("/api/icp/profiles/:id/version", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator") {
+      return reply.code(403).send({ error: "role insuficiente para versionar perfil de ICP" });
+    }
+    const current = await icpStore.getProfile((req.params as { id: string }).id);
+    if (!current) return reply.code(404).send({ error: "perfil ICP base não encontrado" });
+    const body = (req.body ?? {}) as Partial<CommercialIcpProfile>;
+    const changeReason = typeof body.changeReason === "string" && body.changeReason.trim()
+      ? body.changeReason.trim()
+      : "Atualização de critérios do Perfil de ICP";
+    const correlationId = randomUUID();
+    const newVersion = current.version + 1;
+    const newProfile: CommercialIcpProfile = {
+      ...current,
+      id: `icp_${randomUUID()}`,
+      version: newVersion,
+      status: "draft",
+      ...(body.description !== undefined ? { description: body.description } : {}),
+      targetSegments: Array.isArray(body.targetSegments) ? body.targetSegments : current.targetSegments,
+      targetCnaes: Array.isArray(body.targetCnaes) ? body.targetCnaes : current.targetCnaes,
+      targetSizes: Array.isArray(body.targetSizes) ? body.targetSizes : current.targetSizes,
+      targetUfs: Array.isArray(body.targetUfs) ? body.targetUfs : current.targetUfs,
+      inclusions: Array.isArray(body.inclusions) ? body.inclusions : current.inclusions,
+      exclusions: Array.isArray(body.exclusions) ? body.exclusions : current.exclusions,
+      weights: body.weights ?? current.weights,
+      changeReason,
+      createdBy: act.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const created = await icpStore.createProfile(newProfile);
+    await audit(act.id, "icp.version", "CommercialIcpProfile", created.id, correlationId, "allowed", {
+      previousProfileId: current.id,
+      version: newVersion,
+      reason: changeReason,
+    });
+    publish("icp.created.v1", correlationId, {
+      profileId: created.id,
+      name: created.name,
+      version: created.version,
+      createdBy: act.id,
+    });
+    return reply.code(201).send(created);
+  });
+
+  app.post("/api/icp/profiles/:id/submit-approval", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator") {
+      return reply.code(403).send({ error: "role insuficiente para submeter perfil para aprovação" });
+    }
+    const profile = await icpStore.getProfile((req.params as { id: string }).id);
+    if (!profile) return reply.code(404).send({ error: "perfil ICP não encontrado" });
+    const correlationId = randomUUID();
+    const approval = await store.createApproval({
+      missionId: "mission_icp_approval",
+      requestedBy: act.id,
+      approverRole: "approver",
+      action: "icp.activate",
+      scope: `icp:${profile.id}:v${profile.version}`,
+      reason: `Ativação do Perfil ICP '${profile.name}' (versão ${profile.version}): ${profile.changeReason ?? "Novas regras comerciais"}`,
+      correlationId,
+      preview: {
+        profileId: profile.id,
+        name: profile.name,
+        version: profile.version,
+        weights: profile.weights,
+        targetCnaes: profile.targetCnaes,
+      },
+    });
+    await audit(act.id, "icp.submit_approval", "CommercialIcpProfile", profile.id, correlationId, "allowed", {
+      approvalId: approval.id,
+    });
+    publish("icp.approval_requested.v1", correlationId, {
+      profileId: profile.id,
+      version: profile.version,
+      requestedBy: act.id,
+    });
+    return reply.code(201).send({ profile, approval });
+  });
+
+  app.post("/api/icp/compare", async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      profileAId?: string;
+      profileBId?: string;
+      companyId?: string;
+      companyData?: {
+        cnpj: string;
+        razaoSocial: string;
+        nomeFantasia?: string;
+        cnae?: string;
+        porte?: string;
+        situacao?: string;
+        municipio?: string;
+        uf?: string;
+      };
+    };
+    if (!body.profileAId || !body.profileBId) {
+      return reply.code(400).send({ error: "profileAId e profileBId são obrigatórios" });
+    }
+    const [pA, pB] = await Promise.all([
+      icpStore.getProfile(body.profileAId),
+      icpStore.getProfile(body.profileBId),
+    ]);
+    if (!pA) return reply.code(404).send({ error: `perfil A (${body.profileAId}) não encontrado` });
+    if (!pB) return reply.code(404).send({ error: `perfil B (${body.profileBId}) não encontrado` });
+
+    let comp = body.companyData;
+    if (!comp && body.companyId) {
+      const stored = await companies.getCompany(body.companyId);
+      if (stored) {
+        comp = {
+          cnpj: stored.cnpj,
+          razaoSocial: stored.razaoSocial,
+          ...(stored.nomeFantasia ? { nomeFantasia: stored.nomeFantasia } : {}),
+          ...(stored.cnae ? { cnae: stored.cnae } : {}),
+          ...(stored.porte ? { porte: stored.porte } : {}),
+          ...(stored.situacao ? { situacao: stored.situacao } : {}),
+          ...(stored.municipio ? { municipio: stored.municipio } : {}),
+          ...(stored.uf ? { uf: stored.uf } : {}),
+        };
+      }
+    }
+    if (!comp) {
+      comp = {
+        cnpj: "11222333000181",
+        razaoSocial: "Empresa de Demonstração LTDA",
+        cnae: "62.01-5-01",
+        porte: "EPP",
+        situacao: "MATRIZ ATIVA",
+        municipio: "São Paulo",
+        uf: "SP",
+      };
+    }
+    const comparison = compareIcpEvaluation(comp, pA, pB);
+    return comparison;
+  });
+
+  // =========================================================================
+  // Onda 12 / Fase 05: Central de Comunicação Supervisionada e Sandbox
+  // =========================================================================
+  app.get("/api/communication/drafts", async (req) => {
+    const q = req.query as { opportunityId?: string; status?: string };
+    let drafts = await store.listDrafts();
+    if (q.opportunityId) drafts = drafts.filter((d) => d.opportunityId === q.opportunityId);
+    if (q.status) drafts = drafts.filter((d) => d.status === q.status);
+    return { drafts, total: drafts.length };
+  });
+
+  app.get("/api/communication/drafts/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const draft = await store.getDraft(id);
+    if (!draft) return reply.code(404).send({ error: "rascunho de comunicação não encontrado" });
+    return draft;
+  });
+
+  app.post("/api/communication/sandbox/dispatch", async (req, reply) => {
+    const act = actor(req);
+    const body = (req.body ?? {}) as {
+      draftId?: string;
+      opportunityId?: string;
+      channel?: Channel;
+      recipient?: string;
+      subject?: string;
+      content?: string;
+      scenario?: "success" | "network_timeout" | "bounce" | "rate_limit" | "suppressed" | "unauthorized";
+      correlationId?: string;
+    };
+    if (!body.recipient || !body.content) {
+      return reply.code(400).send({ error: "recipient e content são obrigatórios para simulação" });
+    }
+    let isApproved = true;
+    if (body.draftId) {
+      const draft = await store.getDraft(body.draftId);
+      if (draft && draft.status !== "approved") {
+        isApproved = false;
+      }
+    }
+    const correlationId = body.correlationId ?? randomUUID();
+    const result = await dispatchSandboxMessage(sandboxStore, {
+      workspaceId: store.workspace.id,
+      draftId: body.draftId,
+      opportunityId: body.opportunityId,
+      channel: body.channel ?? "email",
+      recipient: body.recipient,
+      subject: body.subject,
+      content: body.content,
+      dispatchedBy: act.id,
+      correlationId,
+      scenario: body.scenario ?? "success",
+      isDraftApproved: isApproved,
+    });
+
+    await audit(act.id, "communication.sandbox_dispatch", "CommunicationDispatch", result.dispatch.id, correlationId, "allowed", {
+      status: result.dispatch.status,
+      simulated: true,
+      channel: result.dispatch.channel,
+    });
+
+    publish("communication.dispatched_simulated.v1", correlationId, {
+      dispatchId: result.dispatch.id,
+      channel: result.dispatch.channel,
+      recipient: result.simulatedPayload.recipientMasked,
+      status: result.dispatch.status,
+      simulated: true,
+      dispatchedBy: act.id,
+    });
+
+    return reply.code(result.duplicated ? 200 : 201).send(result);
+  });
+
+  app.get("/api/communication/dispatches", async (req) => {
+    const q = req.query as { channel?: Channel; status?: string };
+    const list = await sandboxStore.listDispatches(store.workspace.id, {
+      ...(q.channel ? { channel: q.channel } : {}),
+      ...(q.status ? { status: q.status as any } : {}),
+    });
+    return { dispatches: list, total: list.length };
+  });
+
+  // =========================================================================
+  // Onda 12 / Fase 06: Governança da Oferta Comercial
+  // =========================================================================
+  app.get("/api/offer-catalog", async (req) => {
+    const q = req.query as { category?: OfferCategory; status?: OfferItemStatus };
+    const items = await offerCatalog.listItems(store.workspace.id, {
+      ...(q.category ? { category: q.category } : {}),
+      ...(q.status ? { status: q.status } : {}),
+    });
+    return { items, total: items.length };
+  });
+
+  app.post("/api/offer-catalog", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "operator") {
+      return reply.code(403).send({ error: "role insuficiente para registrar item no catálogo de oferta" });
+    }
+    const body = (req.body ?? {}) as Partial<CommercialOfferItem>;
+    if (!body.title || !body.content || !body.category) {
+      return reply.code(400).send({ error: "category, title e content são obrigatórios" });
+    }
+    const correlationId = randomUUID();
+    const item: CommercialOfferItem = {
+      id: `offer_${randomUUID()}`,
+      workspaceId: store.workspace.id,
+      category: body.category as OfferCategory,
+      title: body.title.trim(),
+      content: body.content.trim(),
+      ...(body.evidenceUrl ? { evidenceUrl: body.evidenceUrl } : {}),
+      status: "pending_validation", // Sempre pendente de validação inicial
+      version: body.version ?? "offer-v1",
+      createdBy: act.id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await offerCatalog.saveItem(item);
+    await audit(act.id, "offer.create", "CommercialOfferItem", item.id, correlationId, "allowed", {
+      category: item.category,
+      title: item.title,
+    });
+    publish("offer_catalog.item_added.v1", correlationId, {
+      itemId: item.id,
+      category: item.category,
+      title: item.title,
+      createdBy: act.id,
+    });
+    return reply.code(201).send(item);
+  });
+
+  app.post("/api/offer-catalog/:id/review", async (req, reply) => {
+    const act = actor(req);
+    if (act.role !== "owner" && act.role !== "approver") {
+      return reply.code(403).send({ error: "role insuficiente para aprovar alegação comercial" });
+    }
+    const id = (req.params as { id: string }).id;
+    const body = (req.body ?? {}) as { decision?: "approved" | "rejected"; reason?: string };
+    if (body.decision !== "approved" && body.decision !== "rejected") {
+      return reply.code(400).send({ error: "decision deve ser 'approved' ou 'rejected'" });
+    }
+    const correlationId = randomUUID();
+    let updated: CommercialOfferItem | null;
+    if (body.decision === "approved") {
+      updated = await offerCatalog.approveItem(id, act.id);
+      if (!updated) return reply.code(404).send({ error: "item não encontrado" });
+      publish("offer_catalog.item_approved.v1", correlationId, {
+        itemId: updated.id,
+        category: updated.category,
+        approvedBy: act.id,
+      });
+    } else {
+      updated = await offerCatalog.rejectItem(id, act.id, body.reason ?? "Rejeitado na revisão");
+      if (!updated) return reply.code(404).send({ error: "item não encontrado" });
+    }
+    await audit(act.id, "offer.review", "CommercialOfferItem", updated.id, correlationId, "allowed", {
+      decision: body.decision,
+    });
+    return updated;
+  });
+
+  app.post("/api/offer-catalog/:id/submit-approval", async (req, reply) => {
+    const act = actor(req);
+    const id = (req.params as { id: string }).id;
+    const item = await offerCatalog.getItem(id);
+    if (!item) return reply.code(404).send({ error: "item de oferta não encontrado" });
+    const correlationId = randomUUID();
+    const approval = await store.createApproval({
+      missionId: "mission_offer_approval",
+      requestedBy: act.id,
+      approverRole: "approver",
+      action: "offer.approve",
+      scope: `offer:${item.id}`,
+      reason: `Aprovação de alegação comercial '${item.title}' (${item.category})`,
+      correlationId,
+      preview: {
+        itemId: item.id,
+        title: item.title,
+        category: item.category,
+      },
+    });
+    return reply.code(201).send({ item, approval });
+  });
+
+  app.post("/api/offer-catalog/validate", async (req, reply) => {
+    const body = (req.body ?? {}) as { claimRefs?: string[] };
+    if (!Array.isArray(body.claimRefs)) {
+      return reply.code(400).send({ error: "claimRefs deve ser um array de referências/IDs" });
+    }
+    const items = await offerCatalog.listItems(store.workspace.id);
+    const result = validateDraftClaims(body.claimRefs, items);
+    return result;
+  });
+
+  app.post("/api/offer-catalog/validate-claims", async (req, reply) => {
+    const body = (req.body ?? {}) as { claimRefs?: string[] };
+    if (!Array.isArray(body.claimRefs)) {
+      return reply.code(400).send({ error: "claimRefs deve ser um array de referências/IDs" });
+    }
+    const items = await offerCatalog.listItems(store.workspace.id);
+    const result = validateDraftClaims(body.claimRefs, items);
+    return result;
+  });
 
   // ---- Auditoria / Eventos / Métricas ----
   app.get("/api/audit", async (req) => {
@@ -1189,6 +1651,8 @@ export function buildApp(ctx: AppContext): FastifyInstance {
           store,
           companies,
           opportunities,
+          icpStore,
+          offerCatalog,
           diagnoseHook: async ({ company, missionId, correlationId: cid }) => {
             const diag = await meridianDiagnose(aiGateway, {
               company: company.razaoSocial,
@@ -1215,6 +1679,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
           requester: act.id,
           correlationId,
           ...(body.forceNew === true ? { forceNew: true } : {}),
+          ...(typeof body.icpProfileId === "string" ? { icpProfileId: body.icpProfileId } : {}),
         },
       );
       return {

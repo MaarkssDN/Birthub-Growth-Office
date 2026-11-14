@@ -11,6 +11,9 @@ async function main() {
   let companies: import("@bgo/commercial").CompanyStorePort | undefined;
   let costStore: import("@bgo/commercial").CostStorePort | undefined;
   let opportunities: import("@bgo/commercial").OpportunityStorePort | undefined;
+  let icpStore: import("@bgo/commercial").IcpStorePort | undefined;
+  let sandboxStore: import("@bgo/commercial").CommunicationSandboxStorePort | undefined;
+  let offerCatalog: import("@bgo/commercial").OfferCatalogStorePort | undefined;
   const envBudget = {
     ...(process.env.BGO_BUDGET_DAILY_UNITS ? { dailyUnits: Number(process.env.BGO_BUDGET_DAILY_UNITS) } : {}),
     ...(process.env.BGO_BUDGET_MONTHLY_UNITS ? { monthlyUnits: Number(process.env.BGO_BUDGET_MONTHLY_UNITS) } : {}),
@@ -30,11 +33,21 @@ async function main() {
       await prismaStore.init();
       store = prismaStore;
       persistence = "postgres";
-      const { PrismaCompanyStore, PrismaCostStore, PrismaOpportunityStore } = await import("@bgo/db");
+      const {
+        PrismaCompanyStore,
+        PrismaCostStore,
+        PrismaOpportunityStore,
+        PrismaIcpStore,
+        PrismaCommunicationSandboxStore,
+        PrismaOfferCatalogStore,
+      } = await import("@bgo/db");
       const wsId = prismaStore.workspace.id;
       companies = new PrismaCompanyStore(prismaStore.prisma, wsId);
       costStore = new PrismaCostStore(prismaStore.prisma, wsId);
       opportunities = new PrismaOpportunityStore(prismaStore.prisma, wsId);
+      icpStore = new PrismaIcpStore(prismaStore.prisma);
+      sandboxStore = new PrismaCommunicationSandboxStore(prismaStore.prisma);
+      offerCatalog = new PrismaOfferCatalogStore(prismaStore.prisma);
       console.log(`[bgo-api] persistência PostgreSQL via ${process.env.DATABASE_URL?.replace(/:[^:@/]+@/, ":***@")} ${handle ? `(PGlite ${handle.dataDir})` : "(servidor externo)"}`);
     } catch (e) {
       console.warn(`[bgo-api] persistência indisponível (${(e as Error).message}) — caindo para memória (volátil)`);
@@ -51,6 +64,9 @@ async function main() {
     ...(companies ? { companies } : {}),
     ...(costStore ? { costStore } : {}),
     ...(opportunities ? { opportunities } : {}),
+    ...(icpStore ? { icpStore } : {}),
+    ...(sandboxStore ? { sandboxStore } : {}),
+    ...(offerCatalog ? { offerCatalog } : {}),
     costLimits: envBudget,
   });
   await app.listen({ port, host });

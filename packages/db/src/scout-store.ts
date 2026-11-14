@@ -303,6 +303,8 @@ type OpportunityRow = {
   approvedAt: Date;
   lostReason: string | null;
   ownerId: string | null;
+  icpProfileId?: string | null;
+  icpVersion?: number;
   correlationId: string;
   lastActivityAt: Date;
   createdAt: Date;
@@ -327,6 +329,8 @@ function toOpportunity(r: OpportunityRow): Opportunity {
     approvedAt: iso(r.approvedAt),
     ...(r.lostReason ? { lostReason: r.lostReason } : {}),
     ...(r.ownerId ? { ownerId: r.ownerId } : {}),
+    ...(r.icpProfileId ? { icpProfileId: r.icpProfileId } : {}),
+    icpVersion: r.icpVersion ?? 1,
     correlationId: r.correlationId,
     lastActivityAt: iso(r.lastActivityAt),
     createdAt: iso(r.createdAt),

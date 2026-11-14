@@ -123,6 +123,8 @@ model Opportunity {
   lastActivityAt DateTime @default(now())
   ownerId        String?
   amount         Decimal? // sempre null na W00-W11
+  icpProfileId   String?
+  icpVersion     Int      @default(1)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   history        OpportunityHistory[]
@@ -266,12 +268,19 @@ model CommercialDraft {
   recipientPolicy String   // synthetic_only | opt_in_required | blocked
   template        String?
   claimRefs       String[]
+  subject         String?
   text            String
+  version         Int      @default(1)
   status          String   @default("draft") // draft|approved|rejected|sent_blocked
   simulated       Boolean  @default(true)
+  scheduledFor    DateTime?
+  rejectionReason String?
+  approvedBy      String?
+  approvedAt      DateTime?
   createdBy       String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  history         CommercialDraftHistory[]
 }
 
 model EventOutbox {
@@ -358,6 +367,8 @@ model Company {
   importadoEm   DateTime
   score         Int      @default(0)      // 0-100, heurística ICP — não é diagnóstico de IA
   scoreVersion  String   @default("score-icp-v1")
+  icpProfileId  String?
+  icpVersion    Int      @default(1)
   reasons       Json     @default("[]")
   gaps          Json     @default("[]")
   reviewStatus  String   @default("pending") // pending|approved|rejected|archived
@@ -427,4 +438,101 @@ model AiUsageRecord {
   @@index([workspaceId, occurredAt])
   @@index([missionId])
   @@index([agentId])
+}
+
+// ---------- Onda 12: ICP Dinâmico, Comunicação Supervisionada e Oferta Comercial ----------
+
+model CommercialIcpProfile {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  name           String
+  version        Int      @default(1)
+  status         String   @default("draft") // draft | pending_approval | approved | archived
+  description    String?
+  targetSegments Json     @default("[]")
+  targetCnaes    Json     @default("[]")
+  targetSizes    Json     @default("[]")
+  targetUfs      Json     @default("[]")
+  inclusions     Json     @default("[]")
+  exclusions     Json     @default("[]")
+  weights        Json     @default("{}")
+  changeReason   String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  history        CommercialIcpHistory[]
+
+  @@unique([workspaceId, name, version])
+  @@index([workspaceId, status])
+}
+
+model CommercialIcpHistory {
+  id         String   @id @default(cuid())
+  profileId  String
+  profile    CommercialIcpProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  action     String   // created | submitted_approval | approved | archived | updated
+  actor      String
+  reason     String?
+  details    Json?
+  occurredAt DateTime @default(now())
+
+  @@index([profileId, occurredAt])
+}
+
+model CommercialDraftHistory {
+  id            String          @id @default(cuid())
+  draftId       String
+  draft         CommercialDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  version       Int
+  subject       String?
+  text          String
+  channel       String
+  claimRefs     String[]
+  actor         String
+  action        String          // created | updated | approved | rejected | adjustment_requested
+  reason        String?
+  occurredAt    DateTime        @default(now())
+
+  @@index([draftId, occurredAt])
+}
+
+model CommunicationDispatch {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  draftId       String?
+  opportunityId String?
+  channel       String   // email | whatsapp | linkedin
+  recipient     String
+  subject       String?
+  content       String
+  status        String   // sent_simulated | error_simulated | blocked_suppressed | blocked_unauthorized
+  simulated     Boolean  @default(true)
+  errorReason   String?
+  dispatchedBy  String
+  correlationId String
+  createdAt     DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([correlationId])
+  @@index([status])
+}
+
+model CommercialOfferItem {
+  id          String   @id @default(cuid())
+  workspaceId String
+  category    String   // value_prop | feature | differentiator | target_audience | commercial_material | contract_term | objection_response
+  title       String
+  content     String
+  evidenceUrl String?
+  status      String   @default("pending_validation") // approved | pending_validation | rejected
+  version     String   @default("offer-v1")
+  approvedBy  String?
+  approvedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, category, status])
 }

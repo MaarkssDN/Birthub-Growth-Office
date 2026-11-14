@@ -30,9 +30,11 @@ beforeAll(async () => {
   const sql01 = readFileSync("prisma/migrations/20250101000000_init_onda01/migration.sql", "utf-8");
   const sql10 = readFileSync("prisma/migrations/20261113000000_onda10_scout_costs/migration.sql", "utf-8");
   const sql11 = readFileSync("prisma/migrations/20261113183000_onda11_commercial_pipeline/migration.sql", "utf-8");
+  const sql12 = readFileSync("prisma/migrations/20261114000000_onda12_icp_communication_sandbox/migration.sql", "utf-8");
   await pg.db.exec(sql01);
   await pg.db.exec(sql10);
   await pg.db.exec(sql11);
+  await pg.db.exec(sql12);
   store = new PrismaStore();
   await store.init();
   redis = new RedisMemoryServer({ instance: { port: 6391, ip: "127.0.0.1" } });

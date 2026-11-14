@@ -659,6 +659,8 @@ export class PrismaStore implements StorePort {
     channel: string; recipientPolicy: string;
     template: string | null; claimRefs: string[]; text: string; status: string;
     simulated: boolean; createdBy: string; createdAt: Date; updatedAt: Date;
+    version?: number; subject?: string | null; scheduledFor?: Date | null;
+    rejectionReason?: string | null; approvedBy?: string | null; approvedAt?: Date | null;
   }): CommercialDraft {
     return {
       id: d.id,
@@ -669,9 +671,15 @@ export class PrismaStore implements StorePort {
       recipientPolicy: d.recipientPolicy,
       ...(d.template ? { template: d.template } : {}),
       claimRefs: d.claimRefs,
+      ...(d.subject ? { subject: d.subject } : {}),
       text: d.text,
+      version: d.version ?? 1,
       status: d.status as CommercialDraft["status"],
       simulated: d.simulated,
+      ...(d.scheduledFor ? { scheduledFor: iso(d.scheduledFor) } : {}),
+      ...(d.rejectionReason ? { rejectionReason: d.rejectionReason } : {}),
+      ...(d.approvedBy ? { approvedBy: d.approvedBy } : {}),
+      ...(d.approvedAt ? { approvedAt: iso(d.approvedAt) } : {}),
       createdBy: d.createdBy,
       createdAt: iso(d.createdAt),
       updatedAt: iso(d.updatedAt),

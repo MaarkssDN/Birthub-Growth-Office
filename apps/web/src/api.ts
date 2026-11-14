@@ -462,4 +462,16 @@ export const api = {
       "/offer-catalog/validate",
       { method: "POST", body: JSON.stringify({ claimRefs }) },
     ),
+
+  // ---- Onda 13: Piloto Comercial Supervisionado, Ficha Consolidada e Métricas ----
+  getCommercialReadiness: () => req<any>("/commercial/readiness"),
+  getConsolidatedDossier: (oppId: string) => req<any>(`/commercial/dossier/${oppId}`),
+  onboardLeadOpportunity: (leadId: string, body?: { runMissionNow?: boolean; icpProfileId?: string }) =>
+    req<any>(`/leads/${leadId}/onboard-opportunity`, { method: "POST", body: JSON.stringify(body ?? {}) }),
+  getPilotMetrics: () => req<any>("/metrics/pilot"),
+  reviewConsolidatedDossier: (oppId: string, decision: "approved" | "rejected", reason?: string) =>
+    req<any>(`/opportunities/${oppId}/dossier/review`, {
+      method: "POST",
+      body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+    }),
 };

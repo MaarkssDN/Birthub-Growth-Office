@@ -4,6 +4,7 @@ import { api, setAuthToken, type Approval, type AuditItem, type CatalogAgent, ty
 import { CaptureView, LoginView } from "./views";
 import { CostsView, PipelineView, ScoutView } from "./scout";
 import { CommunicationView, IcpView, OfferCatalogView } from "./onda12-views";
+import { ReadinessView, ConsolidatedDossierView, PilotMetricsView } from "./onda13-views";
 
 // Code-split: o escritório 3D (three.js) só carrega ao abrir a aba
 const OfficeView = lazy(() => import("./office/OfficeView").then((m) => ({ default: m.OfficeView })));
@@ -15,6 +16,9 @@ type Tab =
   | "leads"
   | "scout"
   | "pipeline"
+  | "dossier"
+  | "readiness"
+  | "pilot_metrics"
   | "icp"
   | "communication"
   | "offers"
@@ -29,6 +33,9 @@ const PUBLIC_TABS: Tab[] = ["capture"];
 const TABS: { id: Tab; label: string }[] = [
   { id: "capture", label: "Captação" },
   { id: "dashboard", label: "Dashboard" },
+  { id: "dossier", label: "Ficha Consolidada" },
+  { id: "readiness", label: "Prontidão Comercial" },
+  { id: "pilot_metrics", label: "Métricas Piloto" },
   { id: "scout", label: "Scout" },
   { id: "pipeline", label: "Pipeline" },
   { id: "icp", label: "ICP Dinâmico" },
@@ -761,6 +768,9 @@ export default function App() {
           />
         )}
         {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
+        {user && tab === "dossier" && <ConsolidatedDossierView />}
+        {user && tab === "readiness" && <ReadinessView />}
+        {user && tab === "pilot_metrics" && <PilotMetricsView />}
         {user && tab === "scout" && <ScoutView onOpenPipeline={openPipeline} />}
         {user && tab === "pipeline" && <PipelineView initialOpportunityId={pipelineOppId} />}
         {user && tab === "icp" && <IcpView />}
@@ -779,7 +789,7 @@ export default function App() {
           </Suspense>
         )}
         <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>
-          Birthub Growth Office · Onda 12 · persistência local · nenhum envio externo ·{" "}
+          Birthub Growth Office · Onda 13 · Piloto Comercial Supervisionado · persistência local · nenhum envio externo ·{" "}
           <span className="badge gold">SIMULAÇÃO</span>
         </footer>
       </main>

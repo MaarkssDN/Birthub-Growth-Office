@@ -908,6 +908,7 @@ function OpportunityDetailPanel({
                     <th>Units</th>
                     <th>Modo</th>
                     <th>Passos / Ferramentas</th>
+                    <th>IA Assist (Onda 16)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -926,6 +927,23 @@ function OpportunityDetailPanel({
                       </td>
                       <td className="mono muted">
                         {(r.steps ?? []).map((s) => `${s.tool}:${s.action}`).join(" → ") || "—"}
+                      </td>
+                      <td>
+                        {(() => {
+                          const ai = (r.output as Record<string, unknown> | undefined)?.aiAssist as
+                            | { simulated?: boolean; provider?: string; model?: string; rejectedReason?: string; parsed?: unknown }
+                            | undefined;
+                          if (!ai) return <span className="mono muted">—</span>;
+                          return (
+                            <span
+                              className={`badge ${ai.simulated ? "gold" : "green"}`}
+                              title={`${ai.provider ?? "?"}/${ai.model ?? "?"}${ai.rejectedReason ? ` · ${ai.rejectedReason}` : ai.parsed ? " · saída estruturada" : ""}`}
+                            >
+                              {ai.simulated ? "IA SIM" : "IA REAL"}
+                              {ai.rejectedReason ? " · recusada" : ""}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   ))}

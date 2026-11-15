@@ -52,6 +52,36 @@ export function AiProvidersView() {
   const [runningDiag, setRunningDiag] = useState(false);
   const [diagResult, setDiagResult] = useState<any | null>(null);
 
+  // Sandbox de tarefas dos demais agentes (Onda 15)
+  const AGENT_TASKS = [
+    { id: "scout", label: "Scout — pesquisa de sinais", defaultInput: '{"company":"Empresa Exemplo","contexto":"empresa de logística em SP"}' },
+    { id: "beacon", label: "Beacon — rascunho de abordagem", defaultInput: '{"lead":{"name":"Contato","company":"Empresa"},"claims":["claim-aprovado-1"]}' },
+    { id: "relay", label: "Relay — plano de tarefas", defaultInput: '{"mission":"Qualificar leads do pipeline","leads":3}' },
+    { id: "pledge", label: "Pledge — próximo compromisso", defaultInput: '{"lead":{"name":"Contato"},"stage":"qualified"}' },
+    { id: "aegis", label: "Aegis — revisão de riscos", defaultInput: '{"mission":"Missão piloto","approvalsPending":1}' },
+  ] as const;
+  const [taskAgent, setTaskAgent] = useState<string>("scout");
+  const [taskInput, setTaskInput] = useState<string>(AGENT_TASKS[0].defaultInput);
+  const [runningTask, setRunningTask] = useState(false);
+  const [taskResult, setTaskResult] = useState<any | null>(null);
+  const [taskError, setTaskError] = useState<string | null>(null);
+
+  const handleAgentTask = async () => {
+    setRunningTask(true);
+    setTaskResult(null);
+    setTaskError(null);
+    try {
+      const input = JSON.parse(taskInput) as Record<string, unknown>;
+      const res = await api.agentTask({ agentId: taskAgent, input });
+      setTaskResult(res);
+      await loadData();
+    } catch (e: any) {
+      setTaskError(e?.message ?? "falha na tarefa");
+    } finally {
+      setRunningTask(false);
+    }
+  };
+
   const loadData = async () => {
     try {
       const [reg, hist] = await Promise.all([
@@ -448,6 +478,80 @@ export function AiProvidersView() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sandbox de Tarefas dos Demais Agentes (Onda 15) */}
+      <div className="panel">
+        <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem" }}>
+          Sandbox de Tarefas — Scout, Beacon, Relay, Pledge e Aegis
+        </h3>
+        <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "#94a3b8" }}>
+          Inferência supervisionada com sanitize de PII, validação de schema e guarda anti-promoções.
+          Resultados são registros para revisão humana — nenhuma ação externa é disparada.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8", marginBottom: "0.25rem" }}>Agente</label>
+            <select
+              className="input"
+              style={{ width: "100%" }}
+              value={taskAgent}
+              onChange={(e) => {
+                const id = e.target.value;
+                setTaskAgent(id);
+                const t = AGENT_TASKS.find((a) => a.id === id);
+                if (t) setTaskInput(t.defaultInput);
+              }}
+            >
+              {AGENT_TASKS.map((a) => (
+                <option key={a.id} value={a.id}>{a.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={{ marginTop: "1rem" }}>
+          <label style={{ display: "block", fontSize: "0.82rem", color: "#94a3b8", marginBottom: "0.25rem" }}>
+            Input (JSON — PII é removida automaticamente antes do modelo)
+          </label>
+          <textarea
+            className="input"
+            rows={4}
+            style={{ width: "100%", fontFamily: "monospace" }}
+            value={taskInput}
+            onChange={(e) => setTaskInput(e.target.value)}
+          />
+        </div>
+        <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+          <button className="btn primary" disabled={runningTask} onClick={handleAgentTask}>
+            {runningTask ? "Executando..." : "Executar Tarefa"}
+          </button>
+        </div>
+        {taskError && <p style={{ color: "#f87171", marginTop: "0.75rem" }}>Erro: {taskError}</p>}
+        {taskResult && (
+          <div style={{ marginTop: "1rem", padding: "1rem", background: "rgba(15, 23, 42, 0.9)", border: "1px solid #334155", borderRadius: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+                {taskResult.agentId} · {taskResult.provider}/{taskResult.model} · {taskResult.latencyMs ?? 0}ms
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <span className={taskResult.simulated ? "badge gold" : "badge green"}>
+                  {taskResult.simulated ? "SIMULADO" : "INFERÊNCIA REAL"}
+                </span>
+                <span className="badge dim">{taskResult.promptKey} @ {taskResult.promptVersion}</span>
+              </div>
+            </div>
+            {taskResult.rejectedReason && (
+              <p style={{ color: "#f87171", fontSize: "0.85rem" }}><strong>Guarda:</strong> {taskResult.rejectedReason}</p>
+            )}
+            {taskResult.parsed ? (
+              <pre style={{ fontSize: "0.78rem", color: "#e2e8f0", overflowX: "auto", margin: 0 }}>
+                {JSON.stringify(taskResult.parsed, null, 2)}
+              </pre>
+            ) : taskResult.output ? (
+              <p style={{ fontSize: "0.85rem", color: "#f1f5f9", whiteSpace: "pre-wrap", margin: 0 }}>{taskResult.output}</p>
+            ) : null}
           </div>
         )}
       </div>

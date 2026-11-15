@@ -483,4 +483,11 @@ export const api = {
   getAiHistory: () => req<any>("/ai/history"),
   diagnoseWithAi: (body: any) =>
     req<any>("/ai/meridian-diagnose", { method: "POST", body: JSON.stringify(body) }),
+  agentTask: (body: { agentId: string; input: Record<string, unknown>; missionId?: string }) =>
+    req<{
+      ok: boolean; simulated: boolean; agentId: string; provider: string; model: string;
+      promptKey: string; promptVersion: string; output?: string;
+      parsed?: Record<string, unknown>; rejectedReason?: string;
+      latencyMs?: number; correlationId?: string;
+    }>("/ai/agent-task", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -1,3 +1,4 @@
+import os from "node:os";
 import type { AiGateway, CompletionResult } from "./index";
 
 /**
@@ -31,6 +32,8 @@ export interface AgentTaskResult {
   latencyMs?: number;
   tokensIn?: number;
   tokensOut?: number;
+  /** Snapshot do host no momento da inferência (diagnóstico de carga local/Ollama). */
+  host?: { loadAvg1m: number; freeMemMb: number };
 }
 
 const FORBIDDEN_PROMISE = /(R\$\s?\d|US\$\s?\d|€\s?\d|\b\d+\s?%\s?(de\s+)?(desconto|aumento|garantia)|\bgarantid[oa]s?\b|\bSLA\b.{0,20}\d|\bcase\b.{0,30}(cliente|empresa))/i;
@@ -102,6 +105,10 @@ export async function agentTask(
     ...(res.latencyMs !== undefined ? { latencyMs: res.latencyMs } : {}),
     ...(res.tokensIn !== undefined ? { tokensIn: res.tokensIn } : {}),
     ...(res.tokensOut !== undefined ? { tokensOut: res.tokensOut } : {}),
+    host: {
+      loadAvg1m: Math.round(os.loadavg()[0]! * 100) / 100,
+      freeMemMb: Math.round(os.freemem() / (1024 * 1024)),
+    },
   };
   if (!res.ok || !res.output) {
     return { ...base, rejectedReason: res.error ?? "sem saída do provedor" };

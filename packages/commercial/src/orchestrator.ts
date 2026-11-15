@@ -451,6 +451,7 @@ export async function runOpportunityMission(
       output?: string;
       parsed?: Record<string, unknown>;
       rejectedReason?: string;
+      host?: { loadAvg1m: number; freeMemMb: number };
     } | null>;
   },
   input: {

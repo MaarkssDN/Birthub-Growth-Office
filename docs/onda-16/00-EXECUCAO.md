@@ -22,3 +22,9 @@
 - Prompts dedicados por agente/mission-type (versionamento v2).
 - aiAssist visível na UI do escritório (painel da missão).
 - Métricas de host durante inferência.
+
+## Incremento 2 — métricas de host na inferência
+- `agentTask` retorna `host: { loadAvg1m, freeMemMb }` (snapshot os no fim da chamada).
+- Propagado: rota `/api/ai/agent-task` (spread automático), `agentTaskHook` do pipeline
+  e tipo em `runOpportunityMission` → visível em `run.output.aiAssist.host`.
+- Base para o item "métricas de host durante inferência" do roadmap.

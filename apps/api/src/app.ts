@@ -1937,6 +1937,7 @@ export function buildApp(ctx: AppContext): FastifyInstance {
               ...(t.output !== undefined ? { output: t.output.slice(0, 2000) } : {}),
               ...(t.parsed !== undefined ? { parsed: t.parsed } : {}),
               ...(t.rejectedReason !== undefined ? { rejectedReason: t.rejectedReason } : {}),
+              ...(t.host !== undefined ? { host: t.host } : {}),
             };
           },
         },

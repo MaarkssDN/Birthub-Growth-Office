@@ -16,3 +16,8 @@
 - UI dedicada p/ disparar tarefas por agente (API pronta).
 - Prompts específicos por agente ainda são os genéricos do registry v1.
 - Embeddings locais, benchmark multi-provider, métricas de host (backlog Onda 15).
+
+## Incremento 2 — UI do sandbox de agentes
+- api.agentTask() + painel "Sandbox de Tarefas" em AiProvidersView:
+  select scout/beacon/relay/pledge/aegis, input JSON editável com defaults,
+  resultado com badge SIMULADO/REAL, provider/model, promptVersion, parsed/rejectedReason.

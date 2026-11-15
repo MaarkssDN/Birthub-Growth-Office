@@ -931,16 +931,28 @@ function OpportunityDetailPanel({
                       <td>
                         {(() => {
                           const ai = (r.output as Record<string, unknown> | undefined)?.aiAssist as
-                            | { simulated?: boolean; provider?: string; model?: string; rejectedReason?: string; parsed?: unknown }
+                            | { simulated?: boolean; provider?: string; model?: string; rejectedReason?: string; parsed?: unknown; host?: { loadAvg1m: number; freeMemMb: number } }
                             | undefined;
                           if (!ai) return <span className="mono muted">—</span>;
                           return (
-                            <span
-                              className={`badge ${ai.simulated ? "gold" : "green"}`}
-                              title={`${ai.provider ?? "?"}/${ai.model ?? "?"}${ai.rejectedReason ? ` · ${ai.rejectedReason}` : ai.parsed ? " · saída estruturada" : ""}`}
-                            >
-                              {ai.simulated ? "IA SIM" : "IA REAL"}
-                              {ai.rejectedReason ? " · recusada" : ""}
+                            <span>
+                              <span
+                                className={`badge ${ai.simulated ? "gold" : "green"}`}
+                                title={`${ai.provider ?? "?"}/${ai.model ?? "?"}${ai.host ? ` · load ${ai.host.loadAvg1m} · ${ai.host.freeMemMb}MB livres` : ""}${ai.rejectedReason ? ` · ${ai.rejectedReason}` : ai.parsed ? " · saída estruturada" : ""}`}
+                              >
+                                {ai.simulated ? "IA SIM" : "IA REAL"}
+                                {ai.rejectedReason ? " · recusada" : ""}
+                              </span>
+                              {ai.parsed ? (
+                                <details style={{ marginTop: 4 }}>
+                                  <summary className="mono muted" style={{ cursor: "pointer", fontSize: 11 }}>
+                                    saída IA
+                                  </summary>
+                                  <pre className="mono" style={{ fontSize: 10, whiteSpace: "pre-wrap", maxWidth: 420, margin: "4px 0 0" }}>
+                                    {JSON.stringify(ai.parsed, null, 2)}
+                                  </pre>
+                                </details>
+                              ) : null}
                             </span>
                           );
                         })()}

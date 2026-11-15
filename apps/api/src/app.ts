@@ -1919,6 +1919,26 @@ export function buildApp(ctx: AppContext): FastifyInstance {
               costUnits: diag.simulated ? 2 : 5,
             };
           },
+          // Onda 16 — IA supervisionada dentro do pipeline: Scout/Beacon/Pledge
+          // recebem aiAssist via agentTask; falha ou ausência cai no determinístico.
+          agentTaskHook: async ({ agentId, input, missionId, correlationId: cid }) => {
+            const t = await agentTask(aiGateway, {
+              agentId,
+              input,
+              missionId,
+              correlationId: cid,
+              approvedClaims: approvedClaimIds(),
+            });
+            return {
+              ok: t.ok,
+              simulated: t.simulated,
+              provider: t.provider,
+              model: t.model,
+              ...(t.output !== undefined ? { output: t.output.slice(0, 2000) } : {}),
+              ...(t.parsed !== undefined ? { parsed: t.parsed } : {}),
+              ...(t.rejectedReason !== undefined ? { rejectedReason: t.rejectedReason } : {}),
+            };
+          },
         },
         {
           opportunityId: id,

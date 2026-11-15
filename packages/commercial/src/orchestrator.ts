@@ -433,6 +433,25 @@ export async function runOpportunityMission(
       correlationId: string;
       company: StoredCompany;
     }) => Promise<{ diagnosis?: string; justification?: string; simulated: boolean; provider: string; model: string; costUnits?: number }>;
+    /**
+     * Onda 16 — hook opcional de IA supervisionada por agente (Scout/Beacon/Pledge).
+     * Quando ausente ou quando falha, o pipeline segue 100% determinístico/SIMULADO.
+     * O retorno é apenas um "aiAssist" informativo — nunca altera claims, estágios ou aprovações.
+     */
+    agentTaskHook?: (task: {
+      agentId: "scout" | "beacon" | "pledge";
+      input: Record<string, unknown>;
+      missionId: string;
+      correlationId: string;
+    }) => Promise<{
+      ok: boolean;
+      simulated: boolean;
+      provider: string;
+      model: string;
+      output?: string;
+      parsed?: Record<string, unknown>;
+      rejectedReason?: string;
+    } | null>;
   },
   input: {
     opportunityId: string;
@@ -485,6 +504,19 @@ export async function runOpportunityMission(
 
   const correlationId = input.correlationId ?? randomUUID();
   const runs: ExecutionRun[] = [];
+
+  // Onda 16 — assistência de IA supervisionada: nunca bloqueia o pipeline determinístico.
+  const runAiAssist = async (
+    agentId: "scout" | "beacon" | "pledge",
+    taskInput: Record<string, unknown>,
+  ) => {
+    if (!deps.agentTaskHook) return null;
+    try {
+      return await deps.agentTaskHook({ agentId, input: taskInput, missionId: mission.id, correlationId });
+    } catch {
+      return null;
+    }
+  };
 
   // Resolução do Perfil de ICP Comercial Ativo (Onda 12 / Fase 02)
   let activeIcp = DEFAULT_COMMERCIAL_ICP_PROFILE;
@@ -700,12 +732,28 @@ export async function runOpportunityMission(
     gaps: company.gaps,
     historyCount: coHistory.length,
   };
+  const scoutAi = await runAiAssist("scout", {
+    razaoSocial: company.razaoSocial,
+    cnpj: company.cnpj,
+    cnae: company.cnae ?? null,
+    porte: company.porte ?? null,
+    situacao: company.situacao ?? null,
+    municipio: company.municipio ?? null,
+    uf: company.uf ?? null,
+    fonte: company.fonte,
+    icpScore: company.score,
+    evidences: company.reasons,
+    gaps: company.gaps,
+  });
   const scoutRun = await runAgent(store, {
     missionId: mission.id,
     agentId: "scout",
     correlationId,
     runInput: { companyId: company.id, cnpj: company.cnpj, batchId: company.batchId ?? null },
-    runOutput: scoutOutput,
+    runOutput: {
+      ...scoutOutput,
+      ...(scoutAi ? { aiAssist: scoutAi } : {}),
+    },
     steps: [
       {
         tool: "research.web",
@@ -891,6 +939,20 @@ export async function runOpportunityMission(
     `[Governança BGO: Rascunho vinculado exclusivamente aos claims aprovados (${claimIds.join(", ")}). ` +
     `Preços, SLA e módulos específicos permanecem PENDENTE_DE_VALIDACAO. Nenhum envio externo automático é realizado.]`;
 
+  const beaconAi = await runAiAssist("beacon", {
+    razaoSocial: company.razaoSocial,
+    nomeFantasia: company.nomeFantasia ?? null,
+    cnpj: company.cnpj,
+    municipio: company.municipio ?? null,
+    uf: company.uf ?? null,
+    icpScore: effectiveScore,
+    priority: recommendedPriority,
+    evidences: evalResult.reasons,
+    gaps: evalResult.gaps,
+    approvedClaimIds: claimIds,
+    diagnosis: diagResult.diagnosis ?? null,
+  });
+
   const beaconRun = await runAgent(store, {
     missionId: mission.id,
     agentId: "beacon",
@@ -907,6 +969,7 @@ export async function runOpportunityMission(
       externalSendAllowed: externalSendPolicy.allowed,
       externalSendBlockedReason: externalSendPolicy.reason,
       draftLength: draftText.length,
+      ...(beaconAi ? { aiAssist: beaconAi } : {}),
     },
     steps: [
       {
@@ -967,6 +1030,24 @@ export async function runOpportunityMission(
     dependsOn: [taskPledge.id],
   });
 
+  const pledgeAi = await runAiAssist("pledge", {
+    razaoSocial: company.razaoSocial,
+    opportunityId: currentOpp.id,
+    draftId: draft.id,
+    priority: recommendedPriority,
+    icpScore: effectiveScore,
+    followupDueAt: dueAt,
+    nextSteps: [
+      "Revisar e aprovar rascunho institucional do Beacon na Central de Aprovações",
+      "Validar canal institucional autorizado (nenhum contato pessoal fictício)",
+      "Registrar acompanhamento comercial em 7 dias após aprovação",
+    ],
+  });
+  const aiSuggestedSteps =
+    pledgeAi?.ok && pledgeAi.parsed && Array.isArray(pledgeAi.parsed.nextSteps)
+      ? (pledgeAi.parsed.nextSteps as unknown[]).filter((s): s is string => typeof s === "string").slice(0, 3)
+      : [];
+
   const pledgeOutput = {
     followupTaskId: followupTask.id,
     responsible: "user:approver",
@@ -975,7 +1056,9 @@ export async function runOpportunityMission(
       "Revisar e aprovar rascunho institucional do Beacon na Central de Aprovações",
       "Validar canal institucional autorizado (nenhum contato pessoal fictício)",
       "Registrar acompanhamento comercial em 7 dias após aprovação",
+      ...aiSuggestedSteps.map((s) => `[IA ${pledgeAi?.simulated ? "SIMULADA" : "REAL"}] ${s}`),
     ],
+    ...(pledgeAi ? { aiAssist: pledgeAi } : {}),
   };
 
   const pledgeRun = await runAgent(store, {

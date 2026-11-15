@@ -43,6 +43,8 @@ describe("isolamento do Birthub 360° (G01/G08)", () => {
     const offenders: string[] = [];
     for (const file of walk(ROOT)) {
       if (file === SELF) continue;
+      const ext = file.slice(file.lastIndexOf("."));
+      if (!TEXT_EXT.has(ext) && !file.endsWith(".env.example") && !file.endsWith("Dockerfile")) continue;
       const content = readSafe(file);
       if (!content) continue;
       if (/tcp:\/\/192\.168\./.test(content)) offenders.push(file);

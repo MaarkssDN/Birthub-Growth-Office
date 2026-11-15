@@ -19,7 +19,12 @@ await shot("desktop-captacao", 1440, 900, async (page) => {
   await page.waitForTimeout(1500);
   ok("desktop carrega captação pública", await page.locator("text=Manifestação de interesse").count() > 0);
   ok("desktop mostra login do escritório", await page.locator("text=acesso do escritório").count() > 0);
-  const form = page.locator("form").first();
+  const openBtn = page.locator("button:has-text('Manifestar interesse'), button:has-text('Abrir Formulário'), button:has-text('Manifestação')");
+  if (await openBtn.count() > 0) {
+    await openBtn.first().click();
+    await page.waitForTimeout(400);
+  }
+  const form = page.locator("form.capture-form, .modal-dialog form, form").first();
   await form.locator("input").nth(0).fill("Playwright Teste");
   await form.locator("input").nth(1).fill("QA Corp");
   await form.locator("input[type=email]").fill("pw@qa.com");

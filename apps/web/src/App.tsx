@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useAsync } from "./hooks";
 import { api, setAuthToken, type Approval, type AuditItem, type CatalogAgent, type EventItem, type SessionUser } from "./api";
-import { CaptureView, LoginView } from "./views";
+import { CaptureView, LoginView, CaptureModal, PublicPortalView } from "./views";
 import { CostsView, PipelineView, ScoutView } from "./scout";
 import { CommunicationView, IcpView, OfferCatalogView } from "./onda12-views";
 import { ReadinessView, ConsolidatedDossierView, PilotMetricsView } from "./onda13-views";
@@ -685,6 +685,7 @@ export default function App() {
   const [pipelineOppId, setPipelineOppId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isCaptureModalOpen, setIsCaptureModalOpen] = useState(false);
 
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -754,6 +755,17 @@ export default function App() {
             </button>
           ))}
         </nav>
+        {!user && (
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="btn cta-modal-btn small"
+              onClick={() => setIsCaptureModalOpen(true)}
+            >
+              <span>📋 Manifestar Interesse (Modal)</span>
+            </button>
+          </div>
+        )}
       </header>
       <main>
         {notice && (
@@ -761,39 +773,50 @@ export default function App() {
             {notice}
           </div>
         )}
-        {tab === "capture" && <CaptureView />}
-        {authChecked && !user && (
-          <LoginView
+        {authChecked && !user ? (
+          <PublicPortalView
             onLogin={(u) => {
               setUser(u);
               setTab("dashboard");
             }}
           />
+        ) : (
+          <>
+            {tab === "capture" && (
+              <PublicPortalView
+                onLogin={(u) => {
+                  setUser(u);
+                  setTab("dashboard");
+                }}
+              />
+            )}
+            {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
+            {user && tab === "ai_providers" && <AiProvidersView />}
+            {user && tab === "dossier" && <ConsolidatedDossierView />}
+            {user && tab === "readiness" && <ReadinessView />}
+            {user && tab === "pilot_metrics" && <PilotMetricsView />}
+            {user && tab === "scout" && <ScoutView onOpenPipeline={openPipeline} />}
+            {user && tab === "pipeline" && <PipelineView initialOpportunityId={pipelineOppId} />}
+            {user && tab === "icp" && <IcpView />}
+            {user && tab === "communication" && <CommunicationView />}
+            {user && tab === "offers" && <OfferCatalogView />}
+            {user && tab === "agents" && <AgentsView />}
+            {user && tab === "leads" && <LeadsView />}
+            {user && tab === "missions" && <MissionsView />}
+            {user && tab === "approvals" && <ApprovalsView onDecide={decide} />}
+            {user && tab === "costs" && <CostsView />}
+            {user && tab === "catalog" && <CatalogView />}
+            {user && tab === "timeline" && <TimelineView />}
+            {user && tab === "office" && (
+              <Suspense fallback={<div className="card muted">Carregando escritório 3D…</div>}>
+                <OfficeView onOpenScout={() => setTab("scout")} onOpenPipeline={openPipeline} />
+              </Suspense>
+            )}
+          </>
         )}
-        {user && tab === "dashboard" && <Dashboard onRunDemo={runDemo} running={running} />}
-        {user && tab === "ai_providers" && <AiProvidersView />}
-        {user && tab === "dossier" && <ConsolidatedDossierView />}
-        {user && tab === "readiness" && <ReadinessView />}
-        {user && tab === "pilot_metrics" && <PilotMetricsView />}
-        {user && tab === "scout" && <ScoutView onOpenPipeline={openPipeline} />}
-        {user && tab === "pipeline" && <PipelineView initialOpportunityId={pipelineOppId} />}
-        {user && tab === "icp" && <IcpView />}
-        {user && tab === "communication" && <CommunicationView />}
-        {user && tab === "offers" && <OfferCatalogView />}
-        {user && tab === "agents" && <AgentsView />}
-        {user && tab === "leads" && <LeadsView />}
-        {user && tab === "missions" && <MissionsView />}
-        {user && tab === "approvals" && <ApprovalsView onDecide={decide} />}
-        {user && tab === "costs" && <CostsView />}
-        {user && tab === "catalog" && <CatalogView />}
-        {user && tab === "timeline" && <TimelineView />}
-        {user && tab === "office" && (
-          <Suspense fallback={<div className="card muted">Carregando escritório 3D…</div>}>
-            <OfficeView onOpenScout={() => setTab("scout")} onOpenPipeline={openPipeline} />
-          </Suspense>
-        )}
-        <footer className="muted" style={{ marginTop: 24, fontSize: 12 }}>
-          Birthub Growth Office · Onda 13 · Piloto Comercial Supervisionado · persistência local · nenhum envio externo ·{" "}
+        <CaptureModal isOpen={isCaptureModalOpen} onClose={() => setIsCaptureModalOpen(false)} />
+        <footer className="muted" style={{ marginTop: 24, fontSize: 12, textAlign: "center" }}>
+          Birthub Growth Office · Onda 14 · Governança AGENTS.md · persistência local · nenhum envio externo ·{" "}
           <span className="badge gold">SIMULAÇÃO</span>
         </footer>
       </main>

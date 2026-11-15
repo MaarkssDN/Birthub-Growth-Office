@@ -1,5 +1,5 @@
 # Relatório de Evidências Visuais Playwright — Onda 14
-Data: 2026-11-14T14:56:39.700Z
+Data: 2026-11-14T16:22:59.617Z
 Base URL: http://127.0.0.1:4180
 
 ## Sumário de Execução

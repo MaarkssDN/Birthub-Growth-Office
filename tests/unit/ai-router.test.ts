@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AiRouter,
   GroqProvider,
+  OllamaProvider,
   OpenRouterProvider,
   XaiProvider,
   HOST_HARDWARE_INFO,
@@ -83,6 +84,8 @@ describe("AiRouter & Multi-Provider Architecture (Onda 14 — G190..G201)", () =
 
   it("bloqueia chamadas para provedores externos contendo PII não sanitizada (G200)", async () => {
     const router = new AiRouter();
+    // Garante que o provedor local não mascare o teste de fallback para mock
+    router.registerProvider(new OllamaProvider({ baseUrl: "http://127.0.0.1:9999/v1" }));
     // Força preferência por nuvem (Groq)
     const res = await router.complete({
       agentId: "meridian",
@@ -108,7 +111,8 @@ describe("AiRouter & Multi-Provider Architecture (Onda 14 — G190..G201)", () =
 
   it("executa fallback gracioso para mock determinístico quando provedores reais falham ou não têm chave (G198)", async () => {
     const router = new AiRouter();
-    // Sem credenciais reais no ambiente de teste, o router deve percorrer a cadeia e cair no mock
+    // Simula indisponibilidade de Ollama para testar cadeia de fallback completa até o mock
+    router.registerProvider(new OllamaProvider({ baseUrl: "http://127.0.0.1:9999/v1" }));
     const res = await router.complete({
       agentId: "meridian",
       promptKey: "meridian.diagnose.v1",

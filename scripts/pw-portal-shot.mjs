@@ -10,7 +10,8 @@ await page.waitForTimeout(1500);
 await page.screenshot({ path: resolve("docs/onda-14/evidencias/portal-publico-desktop.png"), fullPage: true });
 
 // Screenshot 2: Open modal
-await page.click("button:has-text('Manifestar interesse comercial')");
+const modalBtn = page.locator("button:has-text('Solicitar Demonstração'), button:has-text('Manifestar')").first();
+await modalBtn.click();
 await page.waitForTimeout(600);
 await page.screenshot({ path: resolve("docs/onda-14/evidencias/modal-captacao-desktop.png") });
 

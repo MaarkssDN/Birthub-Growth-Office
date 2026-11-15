@@ -749,11 +749,22 @@ export default function App() {
           </span>
         )}
         <nav className="nav" aria-label="Seções">
-          {TABS.filter((t) => user || PUBLIC_TABS.includes(t.id)).map((t) => (
-            <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
+          {user ? (
+            TABS.map((t) => (
+              <button key={t.id} className={tab === t.id ? "active" : ""} onClick={() => setTab(t.id)}>
+                {t.label}
+              </button>
+            ))
+          ) : (
+            <>
+              <a href="#solucao">Solução</a>
+              <a href="#pilares">Pilares</a>
+              <a href="#agentes">Agentes</a>
+              <a href="#governanca">Governança</a>
+              <a href="#faq">FAQ</a>
+              <a href="#acesso">Acesso</a>
+            </>
+          )}
         </nav>
         {!user && (
           <div className="topbar-actions">
@@ -815,8 +826,10 @@ export default function App() {
           </>
         )}
         <CaptureModal isOpen={isCaptureModalOpen} onClose={() => setIsCaptureModalOpen(false)} />
-        <footer className="muted" style={{ marginTop: 24, fontSize: 12, textAlign: "center" }}>
-          Birthub Growth Office · Onda 14 · Governança AGENTS.md · persistência local · nenhum envio externo ·{" "}
+        <footer style={{ marginTop: 32, paddingBottom: 24, fontSize: 12, textAlign: "center" }}>
+          <span className="subtitle-ice-cyan">
+            Birthub Growth Office · Ecossistema Comercial Integrado · Governança AGENTS.md · persistência local · nenhum envio externo ·{" "}
+          </span>
           <span className="badge gold">SIMULAÇÃO</span>
         </footer>
       </main>

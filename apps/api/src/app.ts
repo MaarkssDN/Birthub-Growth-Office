@@ -67,7 +67,7 @@ import {
   type OutboxEvent,
 } from "@bgo/commercial";
 import { eventBus, recordAudit, snapshot as metricsSnapshot, incr } from "@bgo/observability";
-import { aiGateway, meridianDiagnose } from "@bgo/ai";
+import { aiGateway, meridianDiagnose, agentTask, type AgentTaskId } from "@bgo/ai";
 import { deriveVisualState } from "@bgo/ui";
 
 export interface AppContext {
@@ -1245,6 +1245,46 @@ export function buildApp(ctx: AppContext): FastifyInstance {
       isLocal: Boolean(result.isLocal),
     });
     return { ...result, correlationId, simulated: result.simulated };
+  });
+
+  // ---- Onda 15: tarefas supervisionadas dos 5 agentes restantes ----
+  // Mesma disciplina do Meridian: auth, rate limit, orçamento, auditoria,
+  // sanitize de PII, validação de schema e guarda anti-promoções.
+  app.post("/api/ai/agent-task", async (req, reply) => {
+    const actor = await requireAuth(req, reply);
+    if (!actor) return;
+    if (!limiter.hit(`ai-task:${actor.id}`, 20, 60 * 60 * 1000)) {
+      return reply.code(429).send({ error: "limite de tarefas de IA por hora atingido" });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const agentId = body.agentId;
+    const valid: AgentTaskId[] = ["scout", "beacon", "relay", "pledge", "aegis"];
+    if (typeof agentId !== "string" || !valid.includes(agentId as AgentTaskId)) {
+      return reply.code(400).send({ error: `agentId deve ser um de: ${valid.join(", ")}` });
+    }
+    const input = (body.input ?? {}) as Record<string, unknown>;
+    if (typeof input !== "object" || input === null || Array.isArray(input)) {
+      return reply.code(400).send({ error: "input deve ser um objeto" });
+    }
+    const missionId = typeof body.missionId === "string" ? body.missionId : undefined;
+    const correlationId = randomUUID();
+    const budget = await costs.assertBudget();
+    if (!budget.allowed) {
+      await audit(actor.id, "ai.budget_blocked", "AiUsage", "budget", correlationId, "denied", { reason: budget.reason });
+      return reply.code(429).send({ error: `orçamento de IA excedido: ${budget.reason}` });
+    }
+    const result = await agentTask(aiGateway, {
+      agentId: agentId as AgentTaskId,
+      input,
+      ...(missionId !== undefined ? { missionId } : {}),
+      correlationId,
+      ...(Array.isArray(body.approvedClaims) ? { approvedClaims: body.approvedClaims.filter((c): c is string => typeof c === "string") } : {}),
+    });
+    await audit(actor.id, "ai.agent_task", agentId, agentId, correlationId, result.ok ? "allowed" : "denied", {
+      simulated: result.simulated, provider: result.provider, model: result.model,
+      promptVersion: result.promptVersion, rejectedReason: result.rejectedReason ?? null,
+    });
+    return { ...result, correlationId };
   });
 
   // ---- Scout: central de prospecção (Onda 10 + Onda 11) ----
